@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="美食GO">
+<meta name="theme-color" content="#bfeadd">
+<title>環遊世界美食GO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 版面想法：一支手機畫面的散步遊戲。上方是會動的街景隊伍，下方是三條進度，底部四個分頁。單一日間主題。 */
+:root{
+  color-scheme:light;
+  --bg:#e6f5ee;
+  --card:#ffffff;
+  --ink:#2b2340;
+  --ink-soft:#6b6480;
+  --accent:#ff5a4e;
+  --sun:#ffc531;
+  --leaf:#2fa36b;
+  --sky:#bfeadd;
+  --line:rgba(43,35,64,.14);
+  --f-num:"Baloo 2","Noto Sans TC",system-ui,sans-serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#app{height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:var(--bg)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 8px}
+h1{font-size:20px;font-weight:900;letter-spacing:.02em;white-space:nowrap}
+h1 span{color:var(--accent)}
+.lv{display:flex;align-items:center;gap:6px;background:var(--ink);color:#fff;border:0;border-radius:999px;padding:4px 12px 4px 5px;font-size:13px;font-weight:700;min-width:0}
+.lv b{font-family:var(--f-num);background:var(--sun);color:var(--ink);border-radius:999px;padding:0 9px;font-size:15px;line-height:1.5;flex:none}
+.lv span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 20px}
+.view{display:none;flex-direction:column;gap:14px}
+.view.on{display:flex}
+nav{display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);border-top:2px solid var(--ink);padding-bottom:env(safe-area-inset-bottom)}
+nav button{background:none;border:0;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px;font-weight:700;color:var(--ink-soft)}
+nav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+nav button[aria-selected="true"]{color:var(--accent)}
+
+/* 街景 */
+.scene{position:relative;height:236px;border:2.5px solid var(--ink);border-radius:22px;overflow:hidden;background:linear-gradient(#bfeadd 0%,#e2f6e6 62%,#9ad6a0 62%,#9ad6a0 100%)}
+.sun{position:absolute;right:22px;top:18px;width:46px;height:46px;border-radius:50%;background:var(--sun);border:2.5px solid var(--ink)}
+.hill{position:absolute;bottom:60px;height:70px;border-radius:50% 50% 0 0;background:#6fc48a;border:2.5px solid var(--ink);border-bottom:0}
+.hill.a{left:-30px;width:210px}.hill.b{right:-50px;width:260px;height:54px;background:#86d09a}
+.road{position:absolute;left:0;right:0;bottom:0;height:62px;background:#f3d9a4;border-top:2.5px solid var(--ink);
+  background-image:repeating-linear-gradient(90deg,transparent 0 34px,rgba(43,35,64,.16) 34px 60px);background-size:60px 5px;background-repeat:repeat-x;background-position:0 46px}
+.walking .road{animation:road .7s linear infinite}
+@keyframes road{to{background-position:-60px 46px}}
+.today{position:absolute;left:14px;top:10px;line-height:1}
+.today small{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.today strong{font-family:var(--f-num);font-size:54px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.today em{font-style:normal;font-weight:900;font-size:16px;margin-left:4px}
+.parade{position:absolute;left:8px;right:8px;bottom:14px;display:flex;justify-content:center;align-items:flex-end}
+.parade .food{width:96px;max-width:96px;min-width:0;margin:0 -6px;flex:0 1 96px}
+
+/* 擬人角色：走路擺動、彈跳壓縮、東張西望、隨機表情與動作 */
+.food{display:block;overflow:visible;cursor:pointer}
+.food .leg path,.food .arm path{stroke:var(--ink);stroke-width:5;stroke-linecap:round;fill:none}
+.food .leg ellipse{fill:var(--accent);stroke:var(--ink);stroke-width:2.5}
+.food.sp .leg ellipse{fill:var(--sun)}
+.food .leg.l,.food .arm.r{animation:swA .42s ease-in-out infinite alternate;animation-delay:var(--d,0s)}
+.food .leg.r,.food .arm.l{animation:swB .42s ease-in-out infinite alternate;animation-delay:var(--d,0s)}
+.food .bob{animation:bob .42s ease-in-out infinite alternate;animation-delay:var(--d,0s);transform-origin:60px 106px}
+.food .sway{animation:sway .84s ease-in-out infinite alternate;animation-delay:var(--d,0s);transform-origin:60px 124px}
+.food .jump{transform-origin:60px 124px}
+.food .e-open{animation:blink 3.4s infinite;animation-delay:var(--d,0s)}
+.food .look{animation:look 5.2s ease-in-out infinite;animation-delay:var(--d,0s)}
+.food .tw{animation:tw 1.2s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+.food .tw:nth-of-type(2){animation-delay:-.4s}.food .tw:nth-of-type(3){animation-delay:-.8s}
+.food .blades{animation:turn 5s linear infinite}
+.slow .leg,.slow .arm,.slow .bob{animation-duration:1.1s!important}
+.slow .sway{animation-duration:2.2s!important}
+@keyframes swA{from{transform:rotate(-24deg)}to{transform:rotate(24deg)}}
+@keyframes swB{from{transform:rotate(24deg)}to{transform:rotate(-24deg)}}
+@keyframes bob{from{transform:translateY(0) scale(1.05,.95)}to{transform:translateY(-7px) scale(.97,1.04)}}
+@keyframes sway{from{transform:rotate(-4deg)}to{transform:rotate(4deg)}}
+@keyframes blink{0%,91%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+@keyframes look{0%,30%,100%{transform:translate(0,0)}38%,52%{transform:translate(2.4px,0)}60%,74%{transform:translate(-2.4px,.6px)}82%{transform:translate(0,-1px)}}
+@keyframes tw{from{transform:scale(.4);opacity:.3}to{transform:scale(1.1);opacity:1}}
+@keyframes turn{to{transform:rotate(360deg)}}
+/* 表情 */
+.food .e-happy,.food .e-wink,.food .m-open,.food .m-o{display:none}
+.food.x-laugh .look,.food.x-laugh .m-smile,.food.x-wink .look,.food.x-wink .m-smile,.food.x-wow .m-smile{display:none}
+.food.x-laugh .e-happy,.food.x-laugh .m-open,.food.x-wink .e-wink,.food.x-wink .m-open,.food.x-wow .m-o{display:inline}
+.food.x-wow .big{transform:scale(1.28)}
+/* 動作 */
+.food.a-jump .jump{animation:jump .62s cubic-bezier(.3,.6,.4,1) 2}
+.food.a-spin .jump{animation:flip .8s ease-in-out 1}
+.food.a-wave .arm.r{animation:wave .22s ease-in-out infinite alternate}
+.food.a-cheer .arm.r{animation:wave .22s ease-in-out infinite alternate}
+.food.a-cheer .arm.l{animation:waveL .22s ease-in-out infinite alternate}
+.food.a-cheer .jump{animation:jump .62s cubic-bezier(.3,.6,.4,1) 2}
+@keyframes jump{0%{transform:translateY(0) scale(1.1,.86)}40%{transform:translateY(-30px) scale(.94,1.08)}80%{transform:translateY(0) scale(1.08,.9)}100%{transform:translateY(0) scale(1,1)}}
+@keyframes flip{0%{transform:scaleX(1)}25%{transform:scaleX(-1) translateY(-10px)}50%{transform:scaleX(1)}75%{transform:scaleX(-1) translateY(-10px)}100%{transform:scaleX(1)}}
+@keyframes wave{from{transform:rotate(-70deg)}to{transform:rotate(-115deg)}}
+@keyframes waveL{from{transform:rotate(70deg)}to{transform:rotate(115deg)}}
+
+.go{border:2.5px solid var(--ink);border-radius:18px;background:var(--accent);color:#fff;font-weight:900;font-size:20px;padding:13px;letter-spacing:.1em;box-shadow:0 4px 0 var(--ink)}
+.go:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.go.stop{background:var(--ink)}
+.status{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;font-weight:700}
+.chip{border:2px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--card);color:var(--ink-soft)}
+.chip.ok{border-color:var(--leaf);color:var(--leaf)}
+.chip.bad{border-color:var(--accent);color:var(--accent)}
+.hint{font-size:14px;background:#fff6d6;border:2px solid var(--ink);border-radius:14px;padding:10px 12px}
+.hint[hidden]{display:none}
+
+.card{background:var(--card);border:2.5px solid var(--ink);border-radius:18px;padding:14px}
+.goal{display:grid;gap:12px}
+.row .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;font-size:15px}
+.row .top span:last-child{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:16px;color:var(--ink-soft);white-space:nowrap}
+.bar{height:14px;border-radius:999px;border:2px solid var(--ink);background:#f1eef6;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;width:0;background:var(--leaf);border-right:2px solid var(--ink);transition:width .3s}
+.bar.s i{background:var(--sun)}.bar.w i{background:var(--accent)}
+.row p{font-size:13px;color:var(--ink-soft);margin-top:2px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:92px;margin-top:10px}
+.week div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;font-size:12px;font-weight:700;color:var(--ink-soft)}
+.week i{display:block;width:100%;min-height:3px;background:var(--sky);border:2px solid var(--ink);border-radius:6px 6px 2px 2px}
+.week .now i{background:var(--accent)}.week .now{color:var(--ink)}
+h2{font-size:17px;font-weight:900}
+.sub{font-size:14px;color:var(--ink-soft)}
+
+/* 圖鑑 */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fc{position:relative;background:var(--card);border:2.5px solid var(--ink);border-radius:16px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.fc .food{width:78%;margin-top:4px}
+.fc b{font-size:14px;font-weight:900;line-height:1.25;overflow-wrap:anywhere}
+.fc small{font-size:12px;color:var(--ink-soft);font-weight:700}
+.fc.no .food{filter:brightness(0);opacity:.13;cursor:default}
+.fc.no .food *{animation:none!important}
+.fc.mk{background:#fff6d6}
+.cnt{font-family:var(--f-num);font-size:13px;color:var(--ink-soft)}
+
+/* 地圖 */
+#map{height:330px;border:2.5px solid var(--ink);border-radius:18px;overflow:hidden;background:#dfeee6;
+  background-image:linear-gradient(rgba(43,35,64,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(43,35,64,.07) 1px,transparent 1px);background-size:28px 28px}
+.days{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.days button{flex:none;border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:3px 12px;font-size:14px;font-weight:700}
+.days button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+.stats div{background:var(--card);border:2.5px solid var(--ink);border-radius:14px;padding:8px 4px}
+.card .stats div{border-width:2px}
+.stats b{display:block;font-family:var(--f-num);font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stats small{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.tag{display:inline-block;background:var(--sun);border:2px solid var(--ink);border-radius:8px;padding:0 8px;font-size:13px;font-weight:900}
+.tag[hidden]{display:none}
+
+/* 玩家 */
+.card ol,.card ul{padding-left:1.3em;display:grid;gap:4px;font-size:15px}
+.inline{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.inline input{flex:1;min-width:0;border:2px solid var(--ink);border-radius:12px;padding:8px 10px;background:#fff;font-size:16px}
+.btn{border:2px solid var(--ink);border-radius:12px;background:var(--sun);font-weight:900;padding:8px 14px;white-space:nowrap}
+.btn.plain{background:var(--card)}
+.btn.danger{background:var(--card);color:var(--accent);border-color:var(--accent)}
+.who{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.who b{font-size:20px;font-weight:900;overflow-wrap:anywhere}
+.rank{display:grid;gap:6px;margin-top:8px}
+.rank div{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;border:2px solid var(--line);border-radius:12px;padding:6px 10px;font-size:15px}
+.rank div.me{border-color:var(--ink);background:#fff6d6}
+.rank i{font-style:normal;font-family:var(--f-num);font-weight:800;font-size:18px;text-align:center}
+.rank span b{font-weight:900;overflow-wrap:anywhere}
+.rank span small{display:block;font-size:12px;color:var(--ink-soft);font-weight:700}
+.rank em{font-style:normal;font-family:var(--f-num);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.syncmsg{font-size:14px;font-weight:700;margin-top:8px}
+.syncmsg.ok{color:var(--leaf)}.syncmsg.bad{color:var(--accent)}
+
+/* 視窗 */
+.modal{position:fixed;inset:0;background:rgba(43,35,64,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:2000}
+.modal.on{display:flex}
+.pop{width:100%;max-width:340px;background:var(--card);border:3px solid var(--ink);border-radius:24px;padding:20px 18px;text-align:center;display:grid;gap:6px;justify-items:center;animation:pop .35s cubic-bezier(.3,1.5,.5,1)}
+.pop .food{width:170px;margin-top:14px}
+.pop h3{font-size:22px;font-weight:900}
+.pop p{font-size:15px;color:var(--ink-soft)}
+.pop .bigLv{font-family:var(--f-num);font-size:84px;line-height:1;color:var(--accent);font-weight:800}
+.pop .go{width:100%;margin-top:8px}
+.pop .trio{display:flex;justify-content:center;width:100%}
+.pop .trio .food{width:31%;margin:10px -4px 0}
+.pop input{width:100%;border:2.5px solid var(--ink);border-radius:14px;padding:10px 12px;font-size:18px;font-weight:700;text-align:center;background:#fff}
+.pop .names{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.pop .names button{border:2px solid var(--ink);background:var(--card);border-radius:999px;padding:3px 12px;font-weight:700;font-size:14px}
+.pop .err{color:var(--accent);font-weight:700;font-size:14px;min-height:1.4em}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.food *, .walking .road,.pop{animation:none!important}}
+
+/* Leaflet 必要樣式 */
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;font-size:12px}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom{touch-action:none}
+.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+.leaflet-container img.leaflet-tile{max-width:none!important;max-height:none!important;width:auto;padding:0}
+.leaflet-tile{visibility:hidden}.leaflet-tile-loaded{visibility:inherit}
+.leaflet-zoom-box{width:0;height:0;z-index:800}
+.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}
+.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}
+.leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
+.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}
+.leaflet-right .leaflet-control{float:right}
+.leaflet-top .leaflet-control{margin-top:10px}.leaflet-left .leaflet-control{margin-left:10px}
+.leaflet-zoom-animated{transform-origin:0 0}
+.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
+.leaflet-zoom-anim .leaflet-tile,.leaflet-pan-anim .leaflet-tile{transition:none}
+.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}
+.leaflet-grab{cursor:grab}
+.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-image-layer,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}
+.leaflet-bar{border:2px solid var(--ink);border-radius:10px;overflow:hidden}
+.leaflet-bar a{background:#fff;width:32px;height:32px;line-height:30px;display:block;text-align:center;text-decoration:none;color:var(--ink);font:bold 18px/30px monospace}
+.leaflet-bar a+a{border-top:1px solid var(--line)}
+.leaflet-control-attribution{background:rgba(255,255,255,.8);padding:0 6px;font-size:11px}
+.leaflet-control-attribution a{color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>環遊世界<span>美食GO</span></h1>
+    <button class="lv" id="lvBtn" type="button" aria-label="玩家資料"><b id="lvNum">Lv.1</b><span id="lvWho">玩家</span></button>
+  </header>
+
+  <main>
+    <!-- 走路 -->
+    <section class="view on" id="v-walk">
+      <div class="scene slow" id="scene">
+        <div class="sun"></div><div class="hill a"></div><div class="hill b"></div>
+        <div class="road"></div>
+        <div class="today"><small>今天</small><strong id="todaySteps">0</strong><em>步</em></div>
+        <div class="parade" id="parade"></div>
+      </div>
+      <button class="go" id="goBtn" type="button">開始走路</button>
+      <div class="status">
+        <span class="chip" id="chipMotion">動作感測 未啟動</span>
+        <span class="chip" id="chipGps">GPS 未啟動</span>
+        <span class="chip" id="chipLock">螢幕恆亮 未啟動</span>
+      </div>
+      <div class="hint" id="hint" hidden></div>
+      <div class="card goal">
+        <div class="row"><div class="top"><span>下一份美食</span><span id="gN">0 / 500</span></div><div class="bar"><i id="bN"></i></div></div>
+        <div class="row"><div class="top"><span>下一座地標（特別版）</span><span id="gS">0 / 5,000</span></div><div class="bar s"><i id="bS"></i></div></div>
+        <div class="row"><div class="top"><span>本週升級</span><span id="gW">0 / 10,000</span></div><div class="bar w"><i id="bW"></i></div><p id="wNote"></p></div>
+      </div>
+      <div class="card">
+        <h2>這一週</h2>
+        <div class="week" id="week"></div>
+      </div>
+    </section>
+
+    <!-- 圖鑑 -->
+    <section class="view" id="v-col">
+      <div><h2>世界美食</h2><p class="sub" id="colSub"></p></div>
+      <div class="grid" id="grid"></div>
+      <div><h2>世界地標（特別版）</h2><p class="sub" id="mkSub"></p></div>
+      <div class="grid" id="gridM"></div>
+    </section>
+
+    <!-- 地圖 -->
+    <section class="view" id="v-map">
+      <div><h2>散步軌跡 <span class="tag" id="sampleTag" hidden>範例</span></h2><p class="sub" id="mapSub"></p></div>
+      <div class="days" id="days"></div>
+      <div id="map"></div>
+      <div class="stats">
+        <div><b id="sKm">0.00</b><small>公里</small></div>
+        <div><b id="sSteps">0</b><small>步</small></div>
+        <div><b id="sPts">0</b><small>軌跡點</small></div>
+      </div>
+    </section>
+
+    <!-- 玩家 -->
+    <section class="view" id="v-info">
+      <div class="card">
+        <div class="who"><div><b id="pName">玩家</b><div class="sub" id="pTitle"></div></div><button class="btn plain" id="switchBtn" type="button">切換玩家</button></div>
+        <div class="stats">
+          <div><b id="pTotal">0</b><small>總步數</small></div>
+          <div><b id="pFoods">0</b><small>美食種類</small></div>
+          <div><b id="pMarks">0</b><small>地標種類</small></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="who" style="margin-bottom:0"><h2>排行榜</h2><button class="btn plain" id="rankBtn" type="button">重新整理</button></div>
+        <p class="sub" id="rankSrc"></p>
+        <div class="rank" id="rank"></div>
+      </div>
+      <div class="card">
+        <h2>Google 試算表同步</h2>
+        <p class="sub">貼上試算表 Apps Script 部署後的網址（結尾是 /exec）。設定後，每位玩家的總步數、美食、地標和等級會寫進試算表，換手機用同一個名稱登入也能接續。</p>
+        <div class="inline"><input id="urlIn" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec" aria-label="Apps Script 網址"><button class="btn" id="urlBtn" type="button">儲存</button></div>
+        <div class="inline"><button class="btn plain" id="syncBtn" type="button">立即同步</button></div>
+        <p class="syncmsg" id="syncMsg"></p>
+      </div>
+      <div class="card">
+        <h2>規則</h2>
+        <ul>
+          <li>累計每 500 步，得到一份美食夥伴。</li>
+          <li>累計每 5,000 步，再得到一座特別版的世界地標。</li>
+          <li>週一到週日走滿 10,000 步，升一級。每升一級，隊伍多帶一位夥伴。</li>
+          <li>點一下任何角色，它會跳起來跟你打招呼。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>補登步數</h2>
+        <p class="sub">螢幕關閉時網頁不能計步。可以把 iPhone「健康」App 裡今天多出來的步數補進來。</p>
+        <div class="inline"><input id="manual" type="number" inputmode="numeric" min="1" max="50000" placeholder="步數" aria-label="要補登的步數"><button class="btn" id="manualBtn" type="button">補登</button></div>
+      </div>
+      <div class="card">
+        <h2>試玩</h2>
+        <p class="sub">不出門先看看獎勵和地圖長什麼樣子。會加上模擬步數和模擬軌跡。</p>
+        <div class="inline"><button class="btn plain" id="demoBtn" type="button">模擬快走 500 步</button></div>
+      </div>
+      <div class="card">
+        <h2>裝到 iPhone 主畫面</h2>
+        <ol>
+          <li>用 Safari 開啟這個遊戲的 https 網址。</li>
+          <li>點下方「分享」，選「加入主畫面」。</li>
+          <li>從主畫面圖示開啟，按「開始走路」，允許「動作與方向」和「位置」。</li>
+          <li>走路時讓畫面保持開著，放口袋也可以計步。</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h2>資料</h2>
+        <p class="sub">紀錄存在這支手機的瀏覽器裡；設定同步後也會寫到 Google 試算表。軌跡只留在手機。</p>
+        <div class="inline"><button class="btn danger" id="resetBtn" type="button">清除這位玩家的紀錄</button></div>
+      </div>
+    </section>
+  </main>
+
+  <nav role="tablist">
+    <button type="button" role="tab" data-v="walk" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M4 16c0-3 2-4 4-4l3-6 3 1-1 5 5 2c2 .6 3 2 3 4H4z"/><path d="M4 19h17"/></svg>走路</button>
+    <button type="button" role="tab" data-v="col" aria-selected="false"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>圖鑑</button>
+    <button type="button" role="tab" data-v="map" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>地圖</button>
+    <button type="button" role="tab" data-v="info" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>玩家</button>
+  </nav>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="popTitle">
+  <div class="pop" id="pop"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+'use strict';
+/* 想把同步網址直接寫進檔案，就填在這裡（所有玩家開啟就自動同步） */
+var SYNC_URL_DEFAULT='https://script.google.com/macros/s/AKfycby9ePnVAlBYpS4Ram7Ab5L1ACuSyfKUTP1nwN19ocs8rc_N3xKWAhLvm1L0o_F14McxaQ/exec';
+
+var INK='#2b2340';
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+/* ---------- 共用造型 ---------- */
+function bowl(bf,stripe,soup,top,pre){return (pre||'')+'<path d="M10 56 L110 56 Q106 104 60 104 Q14 104 10 56Z" fill="'+bf+'"/>'+(stripe?'<path d="M16 72 Q60 80 104 72" fill="none" stroke="'+stripe+'" stroke-width="4"/>':'')+'<ellipse cx="60" cy="56" rx="50" ry="12" fill="'+soup+'"/>'+(top||'')}
+function cup(c,straw,inside,lid){return '<rect x="67" y="-6" width="8" height="40" rx="3" fill="'+straw+'" transform="rotate(8 71 14)"/><path d="M30 36 L90 36 L83 100 Q82 106 76 106 L44 106 Q38 106 37 100 Z" fill="'+c+'"/>'+(inside||'')+lid}
+function moon(c){return '<path d="M12 88 Q12 40 60 40 Q108 40 108 88 Q108 102 60 102 Q12 102 12 88Z" fill="'+c+'"/><path d="M20 62 Q24 51 32 55 Q36 44 46 48 Q52 39 60 44 Q68 39 74 48 Q84 44 88 55 Q96 51 100 62" fill="none"/>'}
+function sub(bun,fill,zig){return '<rect x="6" y="30" width="108" height="32" rx="16" fill="'+fill+'"/><path d="M18 44 Q26 36 34 44 Q42 52 50 44 Q58 36 66 44 Q74 52 82 44 Q90 36 98 44" fill="none" stroke="'+zig+'" stroke-width="4.5"/><rect x="10" y="50" width="100" height="52" rx="24" fill="'+bun+'"/>'}
+function fold(c,pre){return pre+'<path d="M12 96 Q12 44 60 44 Q108 44 108 96 Q108 102 102 102 L18 102 Q12 102 12 96Z" fill="'+c+'"/>'}
+var LIGHT='stroke="#000" stroke-opacity=".16"';
+
+/* ---------- 36 種美食 ---------- */
+var FOODS=[
+ {id:'boba',name:'珍珠奶茶',country:'台灣',fy:62,ay:64,ax:[33,87],
+  body:function(){return cup('#d9a777','#ff5a4e','<g stroke="none" fill="#3a2a2a"><circle cx="47" cy="97" r="4.5"/><circle cx="58" cy="99" r="4.5"/><circle cx="69" cy="97" r="4.5"/><circle cx="77" cy="90" r="4"/><circle cx="43" cy="88" r="4"/></g>','<rect x="25" y="27" width="70" height="11" rx="5.5" fill="#fff"/>')}},
+ {id:'guabao',name:'刈包',country:'台灣',fy:74,ay:78,ax:[14,106],
+  body:function(){return fold('#fffaf0','<rect x="22" y="32" width="76" height="30" rx="13" fill="#a8623b"/><g fill="#58b368"><circle cx="36" cy="34" r="8"/><circle cx="60" cy="29" r="8"/><circle cx="84" cy="34" r="8"/></g>')}},
+ {id:'sushi',name:'鮭魚握壽司',country:'日本',fy:82,ay:80,ax:[20,100],
+  body:function(){return '<rect x="20" y="50" width="80" height="54" rx="24" fill="#fffdf6"/><path d="M14 62 Q14 30 60 28 Q106 30 106 62 Q106 70 98 66 Q60 50 22 66 Q14 70 14 62Z" fill="#ff8f6b"/><path d="M36 37 L42 53 M59 32 L61 48 M82 36 L80 52" stroke="#fff" stroke-opacity=".65" fill="none"/>'}},
+ {id:'onigiri',name:'飯糰',country:'日本',fy:60,ay:74,ax:[20,100],
+  body:function(){return '<path d="M60 20 Q70 20 76 30 L104 80 Q112 102 90 102 L30 102 Q8 102 16 80 L44 30 Q50 20 60 20Z" fill="#fffdf6"/><path d="M38 82 H82 V102 H38Z" fill="#2f4a3a"/>'}},
+ {id:'ramen',name:'拉麵',country:'日本',fy:86,ay:74,ax:[14,106],
+  body:function(){return bowl('#f0624f','#ffd66b','#f2d08a','<ellipse cx="40" cy="55" rx="10" ry="6" fill="#fff"/><circle cx="40" cy="55" r="3.5" fill="#ffb02e" stroke="none"/><circle cx="66" cy="56" r="7" fill="#fff"/><path d="M63 56 q3 -4 6 0 q-3 4 -3 0" fill="none" stroke="#ff7fa8" stroke-width="2"/>','<rect x="80" y="28" width="16" height="30" rx="2" fill="#2f4a3a"/>')}},
+ {id:'pizza',name:'臘腸披薩',country:'義大利',fy:60,ay:50,ax:[26,94],lx:[56,64],
+  body:function(){return '<path d="M16 34 L104 34 L65 104 Q60 110 55 104 Z" fill="#ffd66b"/><path d="M16 30 Q60 12 104 30" fill="none" stroke-width="19"/><path d="M16 30 Q60 12 104 30" fill="none" stroke="#e09a4a" stroke-width="13"/><circle cx="33" cy="47" r="6" fill="#e2483d"/><circle cx="87" cy="47" r="6" fill="#e2483d"/><circle cx="60" cy="90" r="6" fill="#e2483d"/>'}},
+ {id:'tiramisu',name:'提拉米蘇',country:'義大利',fy:76,ay:74,ax:[20,100],
+  body:function(){return '<rect x="20" y="30" width="80" height="74" rx="8" fill="#fff3d6"/><path d="M20 38 Q20 30 28 30 L92 30 Q100 30 100 38 L100 46 L20 46Z" fill="#6b3f2a"/><rect x="20" y="54" width="80" height="8" fill="#b07a52"/><path d="M54 30 Q52 18 62 16 Q66 24 60 30Z" fill="#58b368"/>'}},
+ {id:'burger',name:'起司漢堡',country:'美國',fy:42,ay:62,ax:[18,102],
+  body:function(){return '<rect x="20" y="78" width="80" height="26" rx="12" fill="#eaa24b"/><rect x="16" y="66" width="88" height="16" rx="8" fill="#7a4a32"/><path d="M14 62 Q22 72 30 64 Q38 74 46 64 Q54 74 62 64 Q70 74 78 64 Q86 74 94 64 Q102 72 106 62 L106 58 L14 58Z" fill="#6cc04a"/><path d="M18 58 Q18 20 60 20 Q102 20 102 58 Z" fill="#eaa24b"/><g stroke="none" fill="#fff3c9"><ellipse cx="44" cy="28" rx="3" ry="1.8"/><ellipse cx="60" cy="25" rx="3" ry="1.8"/><ellipse cx="76" cy="28" rx="3" ry="1.8"/></g>'}},
+ {id:'donut',name:'甜甜圈',country:'美國',fy:78,ay:66,ax:[20,100],
+  body:function(){return '<path fill-rule="evenodd" d="M60 20a42 42 0 1 0 .01 0Z M60 41a9 9 0 1 0 .01 0Z" fill="#e9a84f"/><path fill-rule="evenodd" d="M60 27a35 35 0 1 0 .01 0Z M60 37a13 13 0 1 0 .01 0Z" fill="#ff8fb5"/><g fill="none" stroke-width="3.2"><path d="M36 44 l5 3" stroke="#fff"/><path d="M80 42 l4 4" stroke="#ffd24d"/><path d="M30 64 l5 -2" stroke="#5bc0eb"/><path d="M88 62 l4 3" stroke="#fff"/><path d="M58 31 l5 1" stroke="#5bc0eb"/></g>'}},
+ {id:'hotdog',name:'熱狗堡',country:'美國',fy:76,ay:78,ax:[12,108],
+  body:function(){return sub('#eaa24b','#c9553d','#ffd23f')}},
+ {id:'taco',name:'塔可',country:'墨西哥',fy:72,ay:78,ax:[14,106],
+  body:function(){return fold('#f4c455','<g fill="#6cc04a"><circle cx="28" cy="50" r="11"/><circle cx="46" cy="38" r="11"/><circle cx="74" cy="38" r="11"/><circle cx="92" cy="50" r="11"/></g><circle cx="60" cy="34" r="10" fill="#ff5a4e"/>')}},
+ {id:'macaron',name:'馬卡龍',country:'法國',fy:42,ay:64,ax:[16,104],
+  body:function(){return '<path d="M18 70 Q18 102 60 102 Q102 102 102 70Z" fill="#f79ac0"/><rect x="14" y="56" width="92" height="16" rx="8" fill="#fff3d6"/><path d="M18 58 Q18 24 60 24 Q102 24 102 58Z" fill="#f79ac0"/>'}},
+ {id:'croissant',name:'可頌',country:'法國',fy:50,ay:60,ax:[14,106],lx:[22,98],ly:90,
+  body:function(){return '<path d="M8 82 Q14 34 60 30 Q106 34 112 82 Q104 100 88 84 Q60 68 32 84 Q16 100 8 82Z" fill="#e9a84f"/><path d="M33 40 Q37 56 30 74 M87 40 Q83 56 90 74 M20 58 Q22 70 16 82 M100 58 Q98 70 104 82" fill="none" '+LIGHT+'/>'}},
+ {id:'kimbap',name:'紫菜飯捲',country:'韓國',fy:68,ay:64,ax:[20,100],
+  body:function(){return '<circle cx="60" cy="62" r="42" fill="#2f4a3a"/><circle cx="60" cy="62" r="34" fill="#fffdf6"/><circle cx="46" cy="45" r="7" fill="#ffd24d"/><circle cx="60" cy="41" r="7" fill="#ff8a3d"/><circle cx="74" cy="45" r="7" fill="#58b368"/>'}},
+ {id:'bibimbap',name:'石鍋拌飯',country:'韓國',fy:86,ay:74,ax:[14,106],
+  body:function(){return bowl('#a59db3',null,'#fffdf6','<g stroke-width="2"><circle cx="30" cy="56" r="7" fill="#58b368"/><circle cx="44" cy="50" r="7" fill="#ff8a3d"/><circle cx="76" cy="50" r="7" fill="#a8623b"/><circle cx="90" cy="56" r="7" fill="#ffd24d"/></g><ellipse cx="60" cy="57" rx="13" ry="7" fill="#fff"/><circle cx="60" cy="56" r="4.5" fill="#ffb02e" stroke="none"/>')}},
+ {id:'baozi',name:'肉包',country:'中國',fy:74,ay:78,ax:[16,104],
+  body:function(){return '<path d="M14 84 Q14 38 60 28 Q106 38 106 84 Q106 104 60 104 Q14 104 14 84Z" fill="#fff7ea"/><path d="M60 30 Q48 38 44 50 M60 30 Q60 40 60 52 M60 30 Q72 38 76 50" fill="none"/><circle cx="60" cy="28" r="5" fill="#fff7ea"/>'}},
+ {id:'jiaozi',name:'餃子',country:'中國',fy:76,ay:80,ax:[14,106],
+  body:function(){return moon('#fffdf6')}},
+ {id:'tanghulu',name:'糖葫蘆',country:'中國',fy:72,ay:74,ax:[34,86],
+  body:function(){return '<path d="M60 -16 V110" fill="none" stroke="#c9a36b" stroke-width="4"/><circle cx="60" cy="4" r="13" fill="#e2372f"/><circle cx="60" cy="30" r="19" fill="#e2372f"/><circle cx="60" cy="72" r="29" fill="#e2372f"/><path d="M40 60 Q44 50 52 47 M48 22 Q51 17 56 15" fill="none" stroke="#fff" stroke-opacity=".7"/>'}},
+ {id:'siumai',name:'燒賣',country:'香港',fy:78,ay:76,ax:[27,93],
+  body:function(){return '<path d="M26 48 Q22 100 34 104 L86 104 Q98 100 94 48Z" fill="#ffd95a"/><ellipse cx="60" cy="48" rx="34" ry="11" fill="#f4a259"/><circle cx="60" cy="44" r="8" fill="#ff6b3d"/>'}},
+ {id:'pho',name:'牛肉河粉',country:'越南',fy:86,ay:74,ax:[14,106],
+  body:function(){return bowl('#fff','#3d7bd9','#e8b56a','<path d="M30 54 Q40 48 50 55 Q60 62 70 54 Q78 48 88 55" fill="none" stroke="#fff8e0" stroke-width="4"/><circle cx="40" cy="59" r="5" fill="#58b368"/>','<path d="M78 54 L98 4 M88 56 L108 10" fill="none" stroke="#b5651d" stroke-width="4"/>')}},
+ {id:'banhmi',name:'越式法國麵包',country:'越南',fy:76,ay:78,ax:[12,108],
+  body:function(){return sub('#e8b56a','#58b368','#ff8a3d')}},
+ {id:'tomyum',name:'冬蔭功',country:'泰國',fy:86,ay:74,ax:[14,106],
+  body:function(){return bowl('#fff','#e2553d','#f0703a','<path d="M40 58 Q40 44 54 46 Q62 50 56 58" fill="none" stroke="#ffb3a0" stroke-width="6"/><circle cx="78" cy="56" r="6" fill="#b8e986"/>')}},
+ {id:'samosa',name:'咖哩角',country:'印度',fy:76,ay:82,ax:[22,98],
+  body:function(){return '<path d="M60 22 Q66 22 70 30 L106 92 Q110 102 98 102 L22 102 Q10 102 14 92 L50 30 Q54 22 60 22Z" fill="#e9a13b"/><path d="M52 40 L60 34 L68 40" fill="none" '+LIGHT+'/>'}},
+ {id:'lassi',name:'芒果拉西',country:'印度',fy:66,ay:66,ax:[33,87],
+  body:function(){return cup('#ffc94d','#2fa36b','','<ellipse cx="60" cy="36" rx="30" ry="8" fill="#fff8e0"/><path d="M40 32 Q36 20 48 22 Q50 30 44 34Z" fill="#58b368"/>')}},
+ {id:'fishchips',name:'炸魚薯條',country:'英國',fy:78,ay:72,ax:[31,89],
+  body:function(){return '<g fill="#ffd24d"><rect x="33" y="28" width="9" height="40" rx="3" transform="rotate(-8 38 48)"/><rect x="44" y="20" width="9" height="44" rx="3"/><rect x="55" y="26" width="9" height="40" rx="3" transform="rotate(5 60 46)"/></g><ellipse cx="78" cy="42" rx="12" ry="20" fill="#e09a4a" transform="rotate(14 78 42)"/><path d="M27 54 L93 54 L85 104 L35 104Z" fill="#fff"/><path d="M29 60 L91 60" fill="none" stroke="#3d7bd9" stroke-width="5"/>'}},
+ {id:'wurst',name:'德國香腸',country:'德國',fy:54,ay:62,ax:[34,86],
+  body:function(){return '<rect x="32" y="16" width="56" height="90" rx="28" fill="#c9714c"/><path d="M42 32 L56 24 M64 24 L78 32" fill="none" stroke="#000" stroke-opacity=".2" stroke-width="4"/><path d="M42 86 Q48 80 54 86 Q60 92 66 86 Q72 80 78 86" fill="none" stroke="#ffd23f" stroke-width="5"/>'}},
+ {id:'waffle',name:'鬆餅',country:'比利時',fy:62,ay:64,ax:[18,102],
+  body:function(){return '<rect x="18" y="24" width="84" height="80" rx="16" fill="#f0b254"/><path d="M32 27 V101 M88 27 V101 M21 44 H99 M21 86 H99" fill="none" stroke="#000" stroke-opacity=".13" stroke-width="5"/><rect x="26" y="15" width="24" height="16" rx="4" fill="#fff3a6" transform="rotate(-10 38 23)"/>'}},
+ {id:'cheese',name:'起司',country:'瑞士',fy:76,ay:82,ax:[16,104],
+  body:function(){return '<path d="M14 62 L100 30 Q106 28 106 36 L106 96 Q106 102 100 102 L20 102 Q14 102 14 96Z" fill="#ffd24d"/><g fill="#f0ae2a" stroke-width="2"><circle cx="90" cy="50" r="7"/><circle cx="28" cy="92" r="5"/><circle cx="94" cy="90" r="5"/><circle cx="62" cy="52" r="4.5"/></g>'}},
+ {id:'paella',name:'海鮮燉飯',country:'西班牙',fy:86,ay:74,ax:[14,106],
+  body:function(){return bowl('#8fa0b3',null,'#ffcf4a','<path d="M36 58 Q36 46 48 48 Q54 52 50 58" fill="none" stroke="#ff8f7a" stroke-width="5.5"/><g stroke-width="2"><circle cx="66" cy="54" r="4" fill="#58b368"/><circle cx="78" cy="59" r="4" fill="#58b368"/><circle cx="88" cy="53" r="4" fill="#e2483d"/></g>','<circle cx="6" cy="62" r="7" fill="#8fa0b3"/><circle cx="114" cy="62" r="7" fill="#8fa0b3"/>')}},
+ {id:'nata',name:'葡式蛋塔',country:'葡萄牙',fy:82,ay:78,ax:[24,96],
+  body:function(){return '<path d="M18 58 L102 58 L90 102 Q89 104 86 104 L34 104 Q31 104 30 102Z" fill="#e9a84f"/><ellipse cx="60" cy="58" rx="42" ry="13" fill="#ffd95a"/><g stroke="none" fill="#c7772e"><ellipse cx="46" cy="56" rx="6" ry="3"/><ellipse cx="72" cy="61" rx="7" ry="3"/><ellipse cx="62" cy="52" rx="4" ry="2"/></g>'}},
+ {id:'gyros',name:'希臘捲餅',country:'希臘',fy:52,ay:60,ax:[33,87],lx:[54,66],
+  body:function(){return '<circle cx="44" cy="30" r="10" fill="#e2483d"/><circle cx="76" cy="30" r="10" fill="#58b368"/><circle cx="60" cy="25" r="11" fill="#a8623b"/><path d="M30 32 L90 32 L80 104 Q60 110 40 104Z" fill="#f2d9a4"/><path d="M35 72 L85 72 L80 104 Q60 110 40 104Z" fill="#fff"/><path d="M37 82 L83 82" fill="none" stroke="#3d7bd9" stroke-width="4"/>'}},
+ {id:'ice',name:'土耳其冰淇淋',country:'土耳其',fy:42,ay:50,ax:[32,88],lx:[56,64],
+  body:function(){return '<path d="M36 64 L84 64 L62 108 Q60 111 58 108Z" fill="#e3a857"/><path d="M46 68 L64 94 M74 68 L56 94" stroke="#000" stroke-opacity=".15" fill="none" stroke-width="2.5"/><circle cx="60" cy="42" r="30" fill="#fff1e0"/>'}},
+ {id:'falafel',name:'炸鷹嘴豆餅',country:'埃及',fy:64,ay:66,ax:[22,98],
+  body:function(){return '<circle cx="60" cy="64" r="40" fill="#c2924f"/><g stroke="none" fill="#6c9a3a"><circle cx="36" cy="44" r="3"/><circle cx="84" cy="46" r="3"/><circle cx="60" cy="32" r="3"/><circle cx="30" cy="80" r="3"/><circle cx="90" cy="82" r="3"/><circle cx="48" cy="96" r="3"/></g>'}},
+ {id:'empanada',name:'餡餅',country:'阿根廷',fy:76,ay:80,ax:[14,106],
+  body:function(){return moon('#e9a13b')}},
+ {id:'pancake',name:'楓糖煎餅',country:'加拿大',fy:82,ay:80,ax:[16,104],
+  body:function(){return '<rect x="16" y="44" width="88" height="60" rx="14" fill="#eeb05a"/><path d="M16 74 H28 M92 74 H104 M16 90 H26 M94 90 H104" fill="none" '+LIGHT+'/><path d="M16 54 Q16 40 30 40 L90 40 Q104 40 104 54 Q104 62 96 60 Q92 72 86 60 Q70 54 60 58 Q54 68 48 58 Q30 54 24 60 Q16 62 16 54Z" fill="#a8551f"/><rect x="48" y="30" width="24" height="13" rx="3" fill="#fff3a6"/>'}},
+ {id:'pavlova',name:'帕芙洛娃蛋糕',country:'澳洲',fy:74,ay:78,ax:[16,104],
+  body:function(){return '<path d="M16 84 Q10 60 30 56 Q30 38 50 44 Q60 32 72 44 Q92 38 90 56 Q110 60 104 84 Q104 102 60 102 Q16 102 16 84Z" fill="#fffaf0"/><circle cx="44" cy="42" r="7" fill="#e2483d"/><circle cx="76" cy="42" r="7" fill="#e2483d"/><circle cx="60" cy="35" r="7" fill="#5b6bd6"/>'}}
+];
+
+/* ---------- 12 座地標（特別版） ---------- */
+var MARKS=[
+ {id:'t101',name:'台北101',country:'台灣',fy:80,ay:80,ax:[34,86],
+  body:function(){var c='#3fb6a8',s='<path d="M60 24 V-2" fill="none"/><rect x="55" y="8" width="10" height="9" fill="'+c+'"/>';[24,36,48].forEach(function(t){s+='<path d="M43 '+(t+12)+' L36 '+t+' L84 '+t+' L77 '+(t+12)+'Z" fill="'+c+'"/>'});return s+'<path d="M37 60 L83 60 L89 104 L31 104Z" fill="'+c+'"/>'}},
+ {id:'tokyo',name:'東京鐵塔',country:'日本',fy:72,ay:60,ax:[41,79],lx:[31,89],
+  body:function(){return '<path d="M55 -8 L65 -8 L70 40 L98 104 L78 104 Q60 84 42 104 L22 104 L50 40Z" fill="#f0482f"/><path d="M53 16 H67 M51 34 H69" fill="none" stroke="#fff" stroke-width="5"/><rect x="40" y="46" width="40" height="9" rx="2" fill="#fff"/>'}},
+ {id:'eiffel',name:'艾菲爾鐵塔',country:'法國',fy:74,ay:62,ax:[44,76],lx:[29,91],
+  body:function(){return '<path d="M56 -8 L64 -8 L67 36 Q70 70 100 104 L80 104 Q60 82 40 104 L20 104 Q50 70 53 36Z" fill="#b89263"/><rect x="45" y="32" width="30" height="7" rx="2" fill="#8f6f47"/><rect x="38" y="54" width="44" height="7" rx="2" fill="#8f6f47"/>'}},
+ {id:'pisa',name:'比薩斜塔',country:'義大利',fy:72,ay:68,ax:[36,84],rot:7,
+  body:function(){return '<rect x="40" y="6" width="40" height="18" rx="4" fill="#fbf6ea"/><rect x="34" y="22" width="52" height="82" rx="5" fill="#fbf6ea"/><path d="M34 40 H86 M34 56 H86 M34 92 H86" fill="none" stroke-width="2.2"/><path d="M40 36 v-6 q4 -5 8 0 v6 M56 36 v-6 q4 -5 8 0 v6 M72 36 v-6 q4 -5 8 0 v6 M40 52 v-5 q4 -5 8 0 v5 M56 52 v-5 q4 -5 8 0 v5 M72 52 v-5 q4 -5 8 0 v5" fill="none" stroke-width="2"/>'}},
+ {id:'bigben',name:'大笨鐘',country:'英國',fy:80,ay:78,ax:[32,88],
+  body:function(){return '<path d="M34 24 L60 -12 L86 24Z" fill="#6b8a99"/><rect x="32" y="52" width="56" height="52" fill="#d9b56a"/><rect x="28" y="22" width="64" height="34" rx="3" fill="#e6c57e"/><circle cx="60" cy="39" r="12" fill="#fff"/><path d="M60 39 V31 M60 39 L66 42" fill="none" stroke-width="2.4"/>'}},
+ {id:'empire',name:'帝國大廈',country:'美國',fy:84,ay:82,ax:[28,92],
+  body:function(){return '<path d="M60 16 V-14" fill="none"/><rect x="47" y="16" width="26" height="24" fill="#c3cbd6"/><rect x="37" y="38" width="46" height="30" fill="#b3bcc9"/><rect x="26" y="66" width="68" height="38" rx="2" fill="#a4aebd"/><path d="M54 22 V36 M60 22 V36 M66 22 V36 M46 44 V62 M54 44 V62 M66 44 V62 M74 44 V62" fill="none" '+LIGHT+' stroke-width="2.4"/>'}},
+ {id:'pyramid',name:'金字塔',country:'埃及',fy:80,ay:86,ax:[22,98],
+  body:function(){return '<path d="M60 14 Q63 14 65 18 L110 98 Q112 102 106 102 L14 102 Q8 102 10 98 L55 18 Q57 14 60 14Z" fill="#e8c36a"/><path d="M46 38 H74 M38 52 H82 M30 66 H40 M80 66 H90" fill="none" '+LIGHT+'/>'}},
+ {id:'taj',name:'泰姬瑪哈陵',country:'印度',fy:84,ay:82,ax:[10,110],
+  body:function(){return '<rect x="8" y="44" width="11" height="60" rx="3" fill="#fdf8f0"/><rect x="101" y="44" width="11" height="60" rx="3" fill="#fdf8f0"/><circle cx="13.5" cy="42" r="6" fill="#fdf8f0"/><circle cx="106.5" cy="42" r="6" fill="#fdf8f0"/><path d="M60 20 V4" fill="none"/><path d="M42 68 Q28 42 60 18 Q92 42 78 68Z" fill="#fdf8f0"/><rect x="24" y="66" width="72" height="38" rx="3" fill="#fdf8f0"/><circle cx="60" cy="4" r="3.5" fill="#ffc531"/>'}},
+ {id:'opera',name:'雪梨歌劇院',country:'澳洲',fy:88,ay:86,ax:[12,108],
+  body:function(){return '<path d="M12 80 Q18 30 50 26 Q44 56 48 80Z" fill="#fff"/><path d="M40 80 Q50 20 88 18 Q74 54 78 80Z" fill="#fff"/><path d="M72 80 Q80 44 110 40 Q100 62 104 80Z" fill="#fff"/><rect x="10" y="76" width="100" height="28" rx="7" fill="#e3d2b6"/>'}},
+ {id:'heaven',name:'天壇',country:'中國',fy:89,ay:88,ax:[30,90],
+  body:function(){return '<rect x="40" y="38" width="40" height="14" fill="#d9483d"/><rect x="34" y="54" width="52" height="14" fill="#d9483d"/><rect x="28" y="72" width="64" height="32" rx="3" fill="#e2594c"/><path d="M36 42 Q60 4 84 42Z" fill="#3d6fd9"/><path d="M26 60 Q60 40 94 60Z" fill="#3d6fd9"/><path d="M16 78 Q60 56 104 78Z" fill="#3d6fd9"/><circle cx="60" cy="20" r="5.5" fill="#ffc531"/>'}},
+ {id:'parthenon',name:'帕德嫩神廟',country:'希臘',fy:72,ay:72,ax:[14,106],
+  body:function(){return '<rect x="20" y="52" width="80" height="44" fill="#fbf6ea"/><rect x="18" y="52" width="12" height="44" fill="#f3ead8"/><rect x="90" y="52" width="12" height="44" fill="#f3ead8"/><path d="M22 54 V94 M26 54 V94 M94 54 V94 M98 54 V94" fill="none" '+LIGHT+' stroke-width="2"/><rect x="12" y="42" width="96" height="11" fill="#f3ead8"/><path d="M12 42 L60 16 L108 42Z" fill="#fbf6ea"/><rect x="8" y="94" width="104" height="10" rx="2" fill="#f3ead8"/>'}},
+ {id:'windmill',name:'荷蘭風車',country:'荷蘭',fy:86,ay:82,ax:[33,87],
+  body:function(){var b='';[0,90,180,270].forEach(function(a){b+='<g transform="rotate('+a+' 60 36)"><path d="M60 36 V2" fill="none"/><rect x="60" y="2" width="11" height="24" fill="#fff3d6" stroke-width="2.2"/></g>'});return '<path d="M42 40 L78 40 L90 104 L30 104Z" fill="#e0926a"/><path d="M38 42 Q60 14 82 42Z" fill="#7a4a32"/><g class="blades" style="transform-origin:60px 36px">'+b+'</g><circle cx="60" cy="36" r="4.5" fill="#ffc531"/>'}}
+];
+MARKS.forEach(function(m){m.sp=true});
+var BY={};FOODS.concat(MARKS).forEach(function(f){BY[f.id]=f});
+
+function star(x,y){return '<path class="tw" fill="#ffc531" stroke="'+INK+'" stroke-width="1.5" d="M'+x+' '+(y-8)+' L'+(x+2.4)+' '+(y-2.4)+' L'+(x+8)+' '+y+' L'+(x+2.4)+' '+(y+2.4)+' L'+x+' '+(y+8)+' L'+(x-2.4)+' '+(y+2.4)+' L'+(x-8)+' '+y+' L'+(x-2.4)+' '+(y-2.4)+'Z"/>'}
+function face(fy){
+  var hi='<circle cx="50.6" cy="'+(fy-1.6)+'" r="1.6" fill="#fff"/>',hi2='<circle cx="72.6" cy="'+(fy-1.6)+'" r="1.6" fill="#fff"/>';
+  var arc=function(x){return '<path d="M'+(x-5.5)+' '+(fy+2)+' Q'+x+' '+(fy-6.5)+' '+(x+5.5)+' '+(fy+2)+'" fill="none" stroke="'+INK+'" stroke-width="3" stroke-linecap="round"/>'};
+  return '<ellipse cx="39" cy="'+(fy+6.5)+'" rx="5" ry="3" fill="#ff7f97" opacity=".75"/><ellipse cx="81" cy="'+(fy+6.5)+'" rx="5" ry="3" fill="#ff7f97" opacity=".75"/>'
+   +'<g class="look"><g class="big" style="transform-origin:60px '+fy+'px"><g class="e-open" style="transform-origin:60px '+fy+'px"><circle cx="49" cy="'+fy+'" r="4.8" fill="'+INK+'"/><circle cx="71" cy="'+fy+'" r="4.8" fill="'+INK+'"/>'+hi+hi2+'</g></g></g>'
+   +'<g class="e-happy">'+arc(49)+arc(71)+'</g>'
+   +'<g class="e-wink">'+arc(49)+'<circle cx="71" cy="'+fy+'" r="4.8" fill="'+INK+'"/>'+hi2+'</g>'
+   +'<path class="m-smile" d="M54 '+(fy+7)+' Q60 '+(fy+13)+' 66 '+(fy+7)+'" fill="none" stroke="'+INK+'" stroke-width="2.6" stroke-linecap="round"/>'
+   +'<g class="m-open"><path d="M52.5 '+(fy+6.5)+' Q60 '+(fy+19)+' 67.5 '+(fy+6.5)+'Z" fill="#7a2b3a" stroke="'+INK+'" stroke-width="2.2" stroke-linejoin="round"/><ellipse cx="60" cy="'+(fy+12)+'" rx="3.2" ry="2" fill="#ff8fa3"/></g>'
+   +'<ellipse class="m-o" cx="60" cy="'+(fy+10.5)+'" rx="3.2" ry="4" fill="'+INK+'"/>';
+}
+function foodSVG(f,delay,cls){
+  var ay=f.ay,al=f.ax[0],ar=f.ax[1],lx=f.lx||[50,70],ly=f.ly||98;
+  var s='<svg class="food'+(f.sp?' sp':'')+(cls?' '+cls:'')+'" data-f="'+f.id+'" viewBox="-6 -24 132 156" role="img" aria-label="'+f.name+'"'+(delay?' style="--d:'+delay+'s"':'')+'><g class="jump"><g class="sway">';
+  s+='<g class="leg l" style="transform-origin:'+lx[0]+'px '+ly+'px"><path d="M'+lx[0]+' '+ly+' L'+(lx[0]-2)+' '+(ly+24)+'"/><ellipse cx="'+(lx[0]-5)+'" cy="'+(ly+26)+'" rx="8" ry="4.5"/></g>';
+  s+='<g class="leg r" style="transform-origin:'+lx[1]+'px '+ly+'px"><path d="M'+lx[1]+' '+ly+' L'+(lx[1]+2)+' '+(ly+24)+'"/><ellipse cx="'+(lx[1]+5)+'" cy="'+(ly+26)+'" rx="8" ry="4.5"/></g>';
+  s+='<g class="bob">'+(f.rot?'<g transform="rotate('+f.rot+' 60 104)">':'');
+  s+='<g class="arm l" style="transform-origin:'+(al+4)+'px '+ay+'px"><path d="M'+(al+4)+' '+ay+' L'+(al-11)+' '+(ay+14)+'"/></g>';
+  s+='<g class="arm r" style="transform-origin:'+(ar-4)+'px '+ay+'px"><path d="M'+(ar-4)+' '+ay+' L'+(ar+11)+' '+(ay+14)+'"/></g>';
+  s+='<g stroke="'+INK+'" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">'+f.body()+'</g>'+face(f.fy);
+  s+=(f.rot?'</g>':'')+'</g></g></g>';
+  if(f.sp)s+=star(4,6)+star(118,30)+star(114,100);
+  return s+'</svg>';
+}
+
+/* ---------- 玩家與存檔 ---------- */
+var P='wfgo.';
+var LV_NAMES=['街邊小吃客','夜市嚮導','美食旅人','環球饕客','世界美食大使'];
+function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function fresh(name){return {v:2,name:name||'',total:0,days:{},givenN:0,givenS:0,level:1,lvWeek:'',foods:{boba:1},marks:{},recent:['boba'],tracks:{},dist:{},demo:{},updated:0}}
+function fill(o){var b=fresh(o.name);for(var k in o)b[k]=o[k];return b}
+function players(){try{var a=JSON.parse(ls(P+'players')||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+function readLocal(name){try{var o=JSON.parse(ls(P+'p.'+name)||'null');return o&&typeof o.total==='number'?fill(o):null}catch(e){return null}}
+function cleanName(s){return String(s||'').replace(/[\u0000-\u001f]/g,'').trim().replace(/^[=+\-@\s]+/,'').slice(0,12)}
+/* 第一版（美食散步隊）的紀錄：第一位登入的玩家接手 */
+function migrateV1(name){
+  if(ls('foodwalk.v1.claimed'))return null;
+  try{
+    var o=JSON.parse(ls('foodwalk.v1')||'null');if(!o||typeof o.total!=='number')return null;
+    var s=fresh(name),sp=0;s.foods={};
+    s.total=o.total;s.days=o.days||{};s.level=o.level||1;s.lvWeek=o.lvWeek||'';s.tracks=o.tracks||{};s.dist=o.dist||{};s.demo=o.demo||{};
+    for(var id in (o.col||{})){var c=o.col[id];if(BY[id]&&c.n>0)s.foods[id]=c.n;sp+=c.s||0}
+    if(!Object.keys(s.foods).length)s.foods={boba:1};
+    for(var i=0;i<sp;i++){var m=MARKS[i%MARKS.length].id;s.marks[m]=(s.marks[m]||0)+1}
+    s.recent=Object.keys(s.marks).concat(Object.keys(s.foods)).slice(-10);
+    s.givenN=Math.floor(s.total/500);s.givenS=Math.floor(s.total/5000);
+    lset('foodwalk.v1.claimed',name);return s;
+  }catch(e){return null}
+}
+var st=fresh('');
+var saveT=0,dirty=false;
+function save(now){
+  if(!st.name)return;
+  if(!now){if(saveT)return;saveT=setTimeout(function(){saveT=0;save(true)},4000);return}
+  st.updated=Date.now();lset(P+'p.'+st.name,JSON.stringify(st));
+}
+function pad(n){return (n<10?'0':'')+n}
+function dkey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function today(){return dkey(new Date())}
+function weekDates(){var d=new Date();d.setHours(12,0,0,0);var off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);var a=[];for(var i=0;i<7;i++){var x=new Date(d);x.setDate(d.getDate()+i);a.push(dkey(x))}return a}
+function weekSteps(s){s=s||st;return weekDates().reduce(function(n,k){return n+(s.days[k]||0)},0)}
+function fmt(n){return Math.round(n).toLocaleString('en-US')}
+function kinds(o){return Object.keys(o).filter(function(k){return o[k]>0&&BY[k]}).length}
+function count(o){var n=0;for(var k in o)n+=o[k]||0;return n}
+function lvName(l){return LV_NAMES[Math.min(l||st.level,LV_NAMES.length)-1]}
+function prune(){var lim=new Date();lim.setDate(lim.getDate()-14);var lk=dkey(lim);for(var k in st.tracks)if(k<lk){delete st.tracks[k];delete st.dist[k];delete st.demo[k]}}
+
+/* ---------- Google 試算表同步 ---------- */
+function syncUrl(){return ls(P+'url')||SYNC_URL_DEFAULT}
+function setSync(cls,txt){var m=$('syncMsg');m.className='syncmsg'+(cls?' '+cls:'');m.textContent=txt}
+function payload(force){
+  var s={};for(var k in st)if(k!=='tracks'&&k!=='dist'&&k!=='demo')s[k]=st[k];
+  return {name:st.name,total:st.total,level:st.level,foodKinds:kinds(st.foods),foodCount:count(st.foods),markKinds:kinds(st.marks),markCount:count(st.marks),week:weekSteps(),today:st.days[today()]||0,force:!!force,save:s};
+}
+function push(force,keep){
+  var u=syncUrl();if(!u||!st.name)return;
+  dirty=false;setSync('','同步中…');
+  try{
+    fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload(force)),keepalive:!!keep})
+     .then(function(r){return r.json()}).then(function(j){if(!j||!j.ok)throw 0;var t=new Date();setSync('ok','已同步到 Google 試算表（'+pad(t.getHours())+':'+pad(t.getMinutes())+'）')})
+     .catch(function(){dirty=true;setSync('bad','連不上試算表。請確認網址正確、部署時存取權選「所有人」，而且是用自己的 https 網址開啟遊戲。')});
+  }catch(e){dirty=true;setSync('bad','這個畫面不能連到試算表。')}
+}
+function pull(name){
+  var u=syncUrl();if(!u)return Promise.resolve(null);
+  try{return fetch(u+'?action=load&name='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(j){return j&&j.ok&&j.found&&j.save?j.save:null}).catch(function(){return null})}
+  catch(e){return Promise.resolve(null)}
+}
+setInterval(function(){if(dirty)push()},30000);
+
+/* ---------- 登入 ---------- */
+var showing=false,queue=[];
+function openPop(html){$('pop').innerHTML=html;$('pop').style.animation='none';void $('pop').offsetWidth;$('pop').style.animation='';$('modal').classList.add('on');showing=true}
+function closePop(){$('modal').classList.remove('on');showing=false}
+function showLogin(){
+  if(walking)stop();
+  var ps=players();
+  var trio=['sushi','t101','burger'].map(function(id,i){return foodSVG(BY[id],-(i*.2).toFixed(1),i===1?'x-laugh':'')}).join('');
+  openPop('<div class="trio">'+trio+'</div><h3 id="popTitle">環遊世界美食GO</h3><p>輸入玩家名稱開始。每位玩家的步數、美食和等級分開紀錄。</p>'
+   +'<input id="nameIn" type="text" maxlength="12" autocomplete="off" placeholder="玩家名稱" aria-label="玩家名稱">'
+   +(ps.length?'<div class="names" id="nameList">'+ps.map(function(n){return '<button type="button" data-n="'+esc(n)+'">'+esc(n)+'</button>'}).join('')+'</div>':'')
+   +'<div class="err" id="nameErr"></div><button class="go" type="button" id="loginOk">開始</button>');
+  var go=function(){var n=cleanName($('nameIn').value);if(!n){$('nameErr').textContent='請輸入玩家名稱。';$('nameIn').focus();return}enter(n)};
+  $('loginOk').onclick=go;
+  $('nameIn').onkeydown=function(e){if(e.key==='Enter')go()};
+  if($('nameList'))$('nameList').onclick=function(e){var b=e.target.closest('button[data-n]');if(b)enter(b.dataset.n)};
+}
+function enter(name){
+  save(true);
+  var s=readLocal(name),isNew=!s;
+  if(!s)s=migrateV1(name)||fresh(name);
+  s.name=name;st=s;prune();
+  var ps=players();if(ps.indexOf(name)<0){ps.push(name);lset(P+'players',JSON.stringify(ps))}
+  lset(P+'cur',name);save(true);
+  closePop();paradeSig='';mapDay=null;queue=[];
+  renderAll();
+  if(syncUrl()){
+    setSync('','讀取試算表紀錄…');
+    pull(name).then(function(cs){
+      if(st.name!==name)return;
+      if(cs&&typeof cs.total==='number'&&cs.total>st.total){
+        var keep={tracks:st.tracks,dist:st.dist,demo:st.demo};st=fill(cs);st.name=name;st.tracks=keep.tracks;st.dist=keep.dist;st.demo=keep.demo;
+        save(true);paradeSig='';renderAll();setSync('ok','已從 Google 試算表載入「'+name+'」的紀錄。');
+      }else push();
+      loadRank();
+    });
+  }else{setSync('','還沒設定試算表網址，紀錄先存在這支手機。');loadRank()}
+}
+
+/* ---------- 獎勵 ---------- */
+function grant(sp){
+  var list=sp?MARKS:FOODS,own=sp?st.marks:st.foods;
+  var pool=list.filter(function(f){return !own[f.id]});
+  if(!pool.length||Math.random()<.3)pool=list;
+  var f=pool[Math.floor(Math.random()*pool.length)];
+  own[f.id]=(own[f.id]||0)+1;
+  st.recent=st.recent.filter(function(r){return r!==f.id});st.recent.push(f.id);if(st.recent.length>10)st.recent.shift();
+  queue.push({t:'food',id:f.id});
+}
+function addSteps(n){
+  if(!(n>0)||!st.name)return;
+  var d=today();
+  st.total+=n;st.days[d]=(st.days[d]||0)+n;
+  while(Math.floor(st.total/500)>st.givenN){st.givenN++;grant(false)}
+  while(Math.floor(st.total/5000)>st.givenS){st.givenS++;grant(true)}
+  var wk=weekDates()[0];
+  if(weekSteps()>=10000&&st.lvWeek!==wk){st.lvWeek=wk;st.level++;queue.push({t:'lv'})}
+  dirty=true;
+  if(queue.length){save(true);push()}else save();
+  renderHome();
+  nextPop();
+}
+function nextPop(){
+  if(showing||!queue.length)return;
+  var q=queue.shift(),h;
+  if(q.t==='food'){
+    var f=BY[q.id];
+    h=foodSVG(f,0,'x-laugh a-wave')+'<h3 id="popTitle">'+(f.sp?'特別版地標來了':'新夥伴加入')+'</h3><p><b style="color:var(--ink)">'+f.name+'</b>　來自'+f.country+'</p><p>'+(f.sp?'累計滿 5,000 步的獎勵':'累計滿 500 步的獎勵')+'</p>';
+  }else{
+    h='<div class="bigLv">Lv.'+st.level+'</div><h3 id="popTitle">升級了</h3><p>本週走滿 10,000 步。你現在是「'+lvName()+'」，隊伍可以多帶一位夥伴。</p>';
+  }
+  openPop(h+'<button class="go" type="button" id="popOk">收下</button>');
+  $('popOk').focus();
+  $('popOk').onclick=function(){closePop();renderHome();if(curView==='col')renderCol();nextPop()};
+}
+
+/* ---------- 首頁 ---------- */
+var paradeSig='';
+function renderHome(){
+  var d=today();
+  $('todaySteps').textContent=fmt(st.days[d]||0);
+  $('lvNum').textContent='Lv.'+st.level;$('lvWho').textContent=st.name||'玩家';
+  var n=st.total%500,s=st.total%5000,w=weekSteps();
+  $('gN').textContent=fmt(n)+' / 500';$('bN').style.width=(n/5)+'%';
+  $('gS').textContent=fmt(s)+' / 5,000';$('bS').style.width=(s/50)+'%';
+  $('gW').textContent=fmt(w)+' / 10,000';$('bW').style.width=Math.min(100,w/100)+'%';
+  $('wNote').textContent=st.lvWeek===weekDates()[0]?'本週已升級，下週一重新累計。':'再走 '+fmt(Math.max(0,10000-w))+' 步升到 Lv.'+(st.level+1)+'。';
+  var size=Math.min(6,2+st.level),list=st.recent.filter(function(id){return BY[id]}).slice(-size),sig=list.join('|');
+  if(sig!==paradeSig){paradeSig=sig;$('parade').innerHTML=list.map(function(id,i){return foodSVG(BY[id],-(i*0.17).toFixed(2))}).join('')}
+  var wd=weekDates(),mx=Math.max.apply(null,wd.map(function(k){return st.days[k]||0}).concat([2000])),names='一二三四五六日';
+  $('week').innerHTML=wd.map(function(k,i){var v=st.days[k]||0;return '<div class="'+(k===d?'now':'')+'"><span>'+(v?fmt(v):'')+'</span><i style="height:'+Math.round(v/mx*60)+'px"></i>'+names[i]+'</div>'}).join('');
+}
+
+/* ---------- 圖鑑 ---------- */
+function cardHTML(f,n,i){
+  if(!n)return '<div class="fc no">'+foodSVG(f)+'<b>？？？</b><small>'+f.country+'</small><span class="cnt">尚未遇見</span></div>';
+  return '<div class="fc'+(f.sp?' mk':'')+'">'+foodSVG(f,-(i*0.13).toFixed(2))+'<b>'+f.name+'</b><small>'+f.country+'</small><span class="cnt">×'+n+'</span></div>';
+}
+function renderCol(){
+  $('grid').innerHTML=FOODS.map(function(f,i){return cardHTML(f,st.foods[f.id]||0,i)}).join('');
+  $('gridM').innerHTML=MARKS.map(function(f,i){return cardHTML(f,st.marks[f.id]||0,i)}).join('');
+  $('colSub').textContent='已遇見 '+kinds(st.foods)+' / '+FOODS.length+' 種。每 500 步來一位。';
+  $('mkSub').textContent='已遇見 '+kinds(st.marks)+' / '+MARKS.length+' 座。每 5,000 步來一座。';
+}
+
+/* ---------- 玩家分頁、排行榜 ---------- */
+function renderInfo(){
+  $('pName').textContent=st.name||'玩家';
+  $('pTitle').textContent='Lv.'+st.level+'　'+lvName();
+  $('pTotal').textContent=fmt(st.total);
+  $('pFoods').textContent=kinds(st.foods)+'/'+FOODS.length;
+  $('pMarks').textContent=kinds(st.marks)+'/'+MARKS.length;
+  if(document.activeElement!==$('urlIn'))$('urlIn').value=ls(P+'url')||'';
+}
+function drawRank(rows,src){
+  rows.sort(function(a,b){return b.total-a.total});
+  $('rankSrc').textContent=src;
+  $('rank').innerHTML=rows.slice(0,30).map(function(r,i){return '<div class="'+(r.name===st.name?'me':'')+'"><i>'+(i+1)+'</i><span><b>'+esc(r.name)+'</b><small>Lv.'+(+r.level||1)+'　美食 '+(+r.foods||0)+' 種　地標 '+(+r.marks||0)+' 座</small></span><em>'+fmt(+r.total||0)+' 步</em></div>'}).join('');
+}
+function localRank(){
+  return players().map(function(n){var s=n===st.name?st:readLocal(n);return s?{name:n,total:s.total,level:s.level,foods:kinds(s.foods),marks:kinds(s.marks)}:null}).filter(Boolean);
+}
+function loadRank(){
+  var u=syncUrl();
+  if(!u){drawRank(localRank(),'這支手機上的玩家。設定試算表同步後，會顯示所有玩家。');return}
+  drawRank(localRank(),'讀取 Google 試算表…');
+  try{
+    fetch(u+'?action=list').then(function(r){return r.json()}).then(function(j){
+      if(!j||!j.ok)throw 0;
+      var rows=j.players||[],me=rows.filter(function(r){return r.name===st.name})[0];
+      if(me){if(st.total>me.total){me.total=st.total;me.level=st.level;me.foods=kinds(st.foods);me.marks=kinds(st.marks)}}
+      else if(st.name)rows.push({name:st.name,total:st.total,level:st.level,foods:kinds(st.foods),marks:kinds(st.marks)});
+      drawRank(rows,'來自 Google 試算表的所有玩家。');
+    }).catch(function(){drawRank(localRank(),'讀不到試算表，先顯示這支手機上的玩家。')});
+  }catch(e){drawRank(localRank(),'讀不到試算表，先顯示這支手機上的玩家。')}
+}
+function renderAll(){renderHome();renderCol();renderInfo();if(curView==='map')renderMap(true)}
+
+/* ---------- 地圖 ---------- */
+var SAMPLE=[[[25.0325,121.5338],[25.0326,121.5375],[25.0300,121.5380],[25.0272,121.5377],[25.0271,121.5340],[25.0298,121.5335],[25.0325,121.5338]]];
+var map=null,layer=null,mapDay=null;
+function hav(a,b){var R=6371000,r=Math.PI/180,dl=(b[0]-a[0])*r,dn=(b[1]-a[1])*r,x=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dn/2)*Math.sin(dn/2);return 2*R*Math.asin(Math.sqrt(x))}
+function segLen(segs){var m=0;segs.forEach(function(s){for(var i=1;i<s.length;i++)m+=hav(s[i-1],s[i])});return m}
+/* 地圖元件載不到時（例如離線），只畫路線形狀 */
+function drawPlain(segs,sample){
+  var all=[];segs.forEach(function(s){all=all.concat(s)});
+  var W=340,H=320,PD=34,h='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="100%" role="img" aria-label="路線形狀">';
+  if(all.length){
+    var la=all.map(function(p){return p[0]}),lo=all.map(function(p){return p[1]});
+    var a0=Math.min.apply(null,la),a1=Math.max.apply(null,la),o0=Math.min.apply(null,lo),o1=Math.max.apply(null,lo);
+    var k=Math.cos((a0+a1)/2*Math.PI/180),dx=Math.max((o1-o0)*k,1e-5),dy=Math.max(a1-a0,1e-5),sc=Math.min((W-2*PD)/dx,(H-2*PD)/dy);
+    var ox=(W-dx*sc)/2,oy=(H-dy*sc)/2;
+    var xy=function(p){return ((p[1]-o0)*k*sc+ox).toFixed(1)+','+(H-oy-(p[0]-a0)*sc).toFixed(1)};
+    segs.forEach(function(s){var pts=s.map(xy).join(' ');
+      h+='<polyline points="'+pts+'" fill="none" stroke="'+INK+'" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/><polyline points="'+pts+'" fill="none" stroke="'+(sample?'#ffc531':'#ff5a4e')+'" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>'});
+    var e=xy(all[all.length-1]).split(',');
+    h+='<circle cx="'+e[0]+'" cy="'+e[1]+'" r="8" fill="#2fa36b" stroke="'+INK+'" stroke-width="3"/>';
+  }
+  h+='<text x="12" y="'+(H-10)+'" font-size="12" font-weight="700" fill="'+INK+'" opacity=".6">地圖底圖沒有載入，只顯示路線形狀</text></svg>';
+  $('map').innerHTML=h;
+}
+function renderMap(fit){
+  var d=today();if(!mapDay)mapDay=d;
+  var keys=Object.keys(st.tracks).filter(function(k){return st.tracks[k].length}).sort().slice(-7);
+  if(keys.indexOf(d)<0)keys.push(d);
+  if(keys.indexOf(mapDay)<0)mapDay=d;
+  $('days').innerHTML=keys.map(function(k){return '<button type="button" data-k="'+k+'" aria-pressed="'+(k===mapDay)+'">'+(k===d?'今天':(+k.slice(5,7))+'/'+(+k.slice(8)))+'</button>'}).join('');
+  var segs=st.tracks[mapDay]||[],sample=!segs.length&&!Object.keys(st.tracks).some(function(k){return st.tracks[k].length});
+  if(sample)segs=SAMPLE;
+  var pts=segs.reduce(function(n,s){return n+s.length},0),m=sample?segLen(segs):(st.dist[mapDay]||segLen(segs));
+  $('sampleTag').hidden=!sample;
+  $('mapSub').textContent=sample?'還沒有你的軌跡。這是大安森林公園一圈的範例，開始走路後會換成你的路線。':(st.demo[mapDay]?'這天包含試玩的模擬軌跡。':'GPS 記錄到的路線。');
+  $('sKm').textContent=(m/1000).toFixed(2);
+  $('sSteps').textContent=sample?fmt(m/0.7):fmt(st.days[mapDay]||0);
+  $('sPts').textContent=fmt(pts);
+  if(!window.L){drawPlain(segs,sample);return}
+  if(!map){
+    map=L.map('map',{zoomControl:true,attributionControl:true}).setView([25.03,121.5358],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+    layer=L.layerGroup().addTo(map);fit=true;
+  }
+  map.invalidateSize();
+  layer.clearLayers();
+  var all=[];
+  segs.forEach(function(s){
+    if(!s.length)return;
+    L.polyline(s,{color:INK,weight:9,opacity:.9,lineJoin:'round'}).addTo(layer);
+    L.polyline(s,{color:sample?'#ffc531':'#ff5a4e',weight:5,opacity:1,lineJoin:'round',dashArray:sample?'2 10':null}).addTo(layer);
+    all=all.concat(s);
+  });
+  if(all.length){
+    L.circleMarker(all[0],{radius:6,color:INK,weight:3,fillColor:'#fff',fillOpacity:1}).addTo(layer);
+    L.circleMarker(all[all.length-1],{radius:8,color:INK,weight:3,fillColor:'#2fa36b',fillOpacity:1}).addTo(layer);
+    if(fit){if(all.length>1)map.fitBounds(L.latLngBounds(all),{padding:[30,30],maxZoom:17});else map.setView(all[0],17)}
+  }
+}
+$('days').addEventListener('click',function(e){var b=e.target.closest('button[data-k]');if(!b)return;mapDay=b.dataset.k;renderMap(true)});
+
+/* ---------- 分頁 ---------- */
+var curView='walk';
+function showView(v){
+  curView=v;
+  document.querySelectorAll('nav button').forEach(function(x){x.setAttribute('aria-selected',x.dataset.v===v)});
+  document.querySelectorAll('.view').forEach(function(s){s.classList.toggle('on',s.id==='v-'+v)});
+  document.querySelector('main').scrollTop=0;
+  if(v==='col')renderCol();
+  if(v==='map')renderMap(true);
+  if(v==='info'){renderInfo();loadRank()}
+}
+document.querySelector('nav').addEventListener('click',function(e){var b=e.target.closest('button[data-v]');if(b)showView(b.dataset.v)});
+$('lvBtn').addEventListener('click',function(){showView('info')});
+
+/* ---------- 角色的即興表演 ---------- */
+var ACTS=['x-laugh a-jump','x-wink a-wave','x-wow','x-laugh a-wave','x-laugh a-spin','x-wink','x-laugh a-cheer','x-wow a-jump'];
+function act(el,cls,ms){
+  if(!el||el.dataset.busy)return;
+  el.dataset.busy='1';var cs=cls.split(' ');
+  cs.forEach(function(c){el.classList.add(c)});
+  setTimeout(function(){cs.forEach(function(c){el.classList.remove(c)});delete el.dataset.busy},ms||1500);
+}
+setInterval(function(){
+  if(document.hidden||showing)return;
+  var els=document.querySelectorAll(curView==='walk'?'#parade .food':'.view.on .fc:not(.no) .food');
+  if(!els.length)return;
+  var n=curView==='walk'?1:2;
+  for(var i=0;i<n;i++)act(els[Math.floor(Math.random()*els.length)],ACTS[Math.floor(Math.random()*ACTS.length)]);
+},1300);
+document.addEventListener('click',function(e){
+  var f=e.target.closest&&e.target.closest('svg.food');
+  if(f&&!f.closest('.no')&&!f.closest('.pop'))act(f,'x-laugh a-cheer',1400);
+});
+
+/* ---------- 計步：動作感測 + GPS ---------- */
+var walking=false,motionOK=false,gpsOK=false,watchId=null,lock=null;
+var grav=9.8,sm=0,armed=true,lastStepT=0,lastPt=null,newSeg=true,carry=0,mapT=0;
+function chip(id,cls,txt){var c=$(id);c.className='chip'+(cls?' '+cls:'');c.textContent=txt}
+function hint(t){var h=$('hint');h.hidden=!t;h.textContent=t||''}
+function onMotion(e){
+  var a=e.accelerationIncludingGravity;if(!a||a.x==null)return;
+  if(!motionOK){motionOK=true;chip('chipMotion','ok','動作感測 計步中')}
+  var mag=Math.sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
+  grav=grav*0.98+mag*0.02;
+  sm=sm*0.7+(mag-grav)*0.3;
+  var now=e.timeStamp||Date.now();
+  if(armed&&sm>1.1&&now-lastStepT>280){armed=false;lastStepT=now;addSteps(1)}
+  else if(!armed&&sm<0.2)armed=true;
+}
+function onPos(p){
+  var c=p.coords,pt=[+c.latitude.toFixed(6),+c.longitude.toFixed(6)];
+  gpsOK=true;
+  if(c.accuracy>40){chip('chipGps','','GPS 訊號弱（±'+Math.round(c.accuracy)+' 公尺）');return}
+  chip('chipGps','ok','GPS 記錄中（±'+Math.round(c.accuracy)+' 公尺）');
+  var d=today(),segs=st.tracks[d]||(st.tracks[d]=[]);
+  if(newSeg||!segs.length||!lastPt){segs.push([pt]);newSeg=false;lastPt=pt}
+  else{
+    var m=hav(lastPt,pt);
+    if(m<6)return;
+    if(m>250)segs.push([pt]);
+    else{
+      var total=segs.reduce(function(n,s){return n+s.length},0);
+      if(total<4000)segs[segs.length-1].push(pt);
+      st.dist[d]=(st.dist[d]||0)+m;
+      if(!motionOK){carry+=m/0.7;var n=Math.floor(carry);carry-=n;addSteps(n)}
+    }
+    lastPt=pt;
+  }
+  save();
+  if(curView==='map'&&mapDay===d&&!mapT)mapT=setTimeout(function(){mapT=0;renderMap(false);if(map&&lastPt)map.panTo(lastPt)},1500);
+}
+function onPosErr(err){gpsOK=false;chip('chipGps','bad',err&&err.code===1?'GPS 未授權':'GPS 無法定位')}
+function getLock(){
+  if(!('wakeLock' in navigator)){chip('chipLock','','螢幕恆亮 不支援');return}
+  navigator.wakeLock.request('screen').then(function(l){lock=l;chip('chipLock','ok','螢幕恆亮 開啟')}).catch(function(){chip('chipLock','','螢幕恆亮 無法開啟')});
+}
+function start(){
+  if(!st.name){showLogin();return}
+  walking=true;motionOK=false;gpsOK=false;newSeg=true;lastPt=null;armed=true;sm=0;
+  $('scene').classList.add('walking');$('scene').classList.remove('slow');
+  $('goBtn').textContent='結束散步';$('goBtn').classList.add('stop');
+  hint('');
+  chip('chipMotion','','動作感測 啟動中');chip('chipGps','','GPS 定位中');
+  var listen=function(){window.addEventListener('devicemotion',onMotion)};
+  try{
+    if(window.DeviceMotionEvent&&typeof DeviceMotionEvent.requestPermission==='function'){
+      DeviceMotionEvent.requestPermission().then(function(r){if(r==='granted')listen();else chip('chipMotion','bad','動作感測 未授權')}).catch(function(){chip('chipMotion','bad','動作感測 無法使用')});
+    }else if('DeviceMotionEvent' in window)listen();
+    else chip('chipMotion','bad','動作感測 不支援');
+  }catch(e){chip('chipMotion','bad','動作感測 無法使用')}
+  try{
+    if('geolocation' in navigator)watchId=navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+    else chip('chipGps','bad','GPS 不支援');
+  }catch(e){chip('chipGps','bad','GPS 無法使用')}
+  getLock();
+  setTimeout(function(){
+    if(!walking)return;
+    if(!motionOK&&$('chipMotion').className==='chip')chip('chipMotion','bad','動作感測 沒有訊號');
+    if(!motionOK&&!gpsOK)hint('這個畫面讀不到手機的動作感測和位置。請把遊戲放到自己的 https 網址，用 iPhone 的 Safari 開啟並允許權限。現在可以先到「玩家」用試玩或補登步數。');
+    else if(!motionOK)hint('讀不到動作感測，改用 GPS 移動距離換算步數（每 0.7 公尺算一步）。');
+  },6000);
+}
+function stop(){
+  walking=false;
+  window.removeEventListener('devicemotion',onMotion);
+  if(watchId!=null){try{navigator.geolocation.clearWatch(watchId)}catch(e){}watchId=null}
+  if(lock){try{lock.release()}catch(e){}lock=null}
+  $('scene').classList.remove('walking');$('scene').classList.add('slow');
+  $('goBtn').textContent='開始走路';$('goBtn').classList.remove('stop');
+  chip('chipMotion','','動作感測 未啟動');chip('chipGps','','GPS 未啟動');chip('chipLock','','螢幕恆亮 未啟動');
+  hint('');save(true);push();
+}
+$('goBtn').addEventListener('click',function(){walking?stop():start()});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'){renderHome();if(walking){newSeg=true;getLock()}}
+  else{save(true);if(dirty)push(false,true)}
+});
+window.addEventListener('pagehide',function(){save(true);if(dirty)push(false,true)});
+
+/* ---------- 玩家分頁的按鈕 ---------- */
+$('switchBtn').addEventListener('click',showLogin);
+$('rankBtn').addEventListener('click',loadRank);
+$('urlBtn').addEventListener('click',function(){
+  var v=$('urlIn').value.trim();
+  if(v&&!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)){setSync('bad','網址格式不對。要貼「網頁應用程式」的網址，開頭是 https://script.google.com/macros/s/，結尾是 /exec。');return}
+  if(v)lset(P+'url',v);else{try{localStorage.removeItem(P+'url')}catch(e){}}
+  if(v){push();loadRank()}else{setSync('','已移除試算表網址，紀錄只存在這支手機。');loadRank()}
+});
+$('syncBtn').addEventListener('click',function(){if(!syncUrl()){setSync('bad','請先貼上試算表的 Apps Script 網址。');return}push();loadRank()});
+$('manualBtn').addEventListener('click',function(){
+  var v=Math.floor(+$('manual').value);
+  if(!(v>0)||v>50000){$('manual').focus();return}
+  $('manual').value='';addSteps(v);renderInfo();
+});
+$('demoBtn').addEventListener('click',function(){
+  var d=today(),segs=st.tracks[d]||(st.tracks[d]=[]);
+  if(!walking||!gpsOK){
+    if(!segs.length)segs.push([[25.0325,121.5338]]);
+    var s=segs[segs.length-1],p=s[s.length-1],hd=st.demoHead==null?1.6:st.demoHead;
+    for(var i=0;i<8;i++){
+      hd+=(Math.random()-.4)*.7;
+      var q=[+(p[0]+Math.cos(hd)*0.0004).toFixed(6),+(p[1]+Math.sin(hd)*0.00044).toFixed(6)];
+      st.dist[d]=(st.dist[d]||0)+hav(p,q);s.push(q);p=q;
+    }
+    st.demoHead=hd;st.demo[d]=1;
+  }
+  addSteps(500);renderInfo();
+});
+var resetArm=0;
+$('resetBtn').addEventListener('click',function(){
+  var b=this;
+  if(!resetArm){b.textContent='再按一次，確定清除';resetArm=setTimeout(function(){resetArm=0;b.textContent='清除這位玩家的紀錄'},4000);return}
+  clearTimeout(resetArm);resetArm=0;b.textContent='清除這位玩家的紀錄';
+  if(walking)stop();
+  st=fresh(st.name);paradeSig='';mapDay=null;save(true);push(true);renderAll();loadRank();
+});
+
+/* ---------- 啟動 ---------- */
+renderAll();
+var cur=ls(P+'cur');
+if(cur&&readLocal(cur))enter(cur);else showLogin();
+})();
+</script>
+</body>
+</html>
