@@ -191,6 +191,22 @@ h2{font-size:17px;font-weight:900}
 @keyframes pop{from{transform:scale(.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){.food *, .walking .road,.pop{animation:none!important}}
 
+.ecoBtn{border:2px solid var(--ink);border-radius:14px;background:var(--card);font-weight:900;padding:10px}
+.ecoBtn[hidden]{display:none}
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:15px}
+.check input{width:22px;height:22px;flex:none;margin-top:2px;accent-color:var(--leaf)}
+/* 省電模式：全黑畫面、只留很暗的步數，並擋住誤觸 */
+#eco{position:fixed;inset:0;background:#000;z-index:3000;display:none;align-items:center;justify-content:center;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#eco.on{display:flex}
+#ecoBox{text-align:center;color:#5a5a5a;transition:transform 2s}
+#ecoBox strong{display:block;font-family:var(--f-num);font-size:72px;line-height:1;font-variant-numeric:tabular-nums;color:#6a6a6a}
+#ecoBox span{display:block;font-size:14px;font-weight:700;margin-top:6px}
+#ecoNew{color:#7a6a2a!important;min-height:1.6em}
+#ecoBar{width:160px;height:4px;background:#1c1c1c;border-radius:4px;margin:14px auto 0;overflow:hidden}
+#ecoBar i{display:block;height:100%;width:0;background:#6a6a6a}
+#eco.hold #ecoBar i{width:100%;transition:width 1.5s linear}
+body.eco .food *,body.eco .road{animation-play-state:paused!important}
+
 /* Leaflet 必要樣式 */
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
 .leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;font-size:12px}
@@ -236,6 +252,7 @@ h2{font-size:17px;font-weight:900}
         <div class="parade" id="parade"></div>
       </div>
       <button class="go" id="goBtn" type="button">開始走路</button>
+      <button class="ecoBtn" id="ecoBtn" type="button" hidden>省電模式（畫面變黑、防誤觸）</button>
       <div class="status">
         <span class="chip" id="chipMotion">動作感測 未啟動</span>
         <span class="chip" id="chipGps">GPS 未啟動</span>
@@ -322,6 +339,11 @@ h2{font-size:17px;font-weight:900}
         <p class="sub">網址裡有你的玩家名稱，每位玩家要用自己的。有戴 Apple Watch 的話，在第 2 步多加條件「來源 是 iPhone」，避免手錶和手機重複加總。</p>
       </div>
       <div class="card">
+        <h2>省電模式</h2>
+        <p class="sub">按「開始走路」後，下方會出現「省電模式」按鈕。開啟後畫面變成全黑、只留很暗的步數，角色動畫暫停，也不怕放口袋誤觸。計步照常，得到的獎勵會等你解除後再顯示。按住畫面 2 秒解除。</p>
+        <label class="check" for="ecoGps"><input type="checkbox" id="ecoGps"><span>省電模式時暫停 GPS 軌跡（更省電，但這段路不會畫在地圖上）</span></label>
+      </div>
+      <div class="card">
         <h2>補登步數</h2>
         <p class="sub">螢幕關閉時網頁不能計步。可以把 iPhone「健康」App 裡今天多出來的步數補進來。</p>
         <div class="inline"><input id="manual" type="number" inputmode="numeric" min="1" max="50000" placeholder="步數" aria-label="要補登的步數"><button class="btn" id="manualBtn" type="button">補登</button></div>
@@ -332,7 +354,7 @@ h2{font-size:17px;font-weight:900}
           <li>用 Safari 開啟這個遊戲的 https 網址。</li>
           <li>點下方「分享」，選「加入主畫面」。</li>
           <li>從主畫面圖示開啟，按「開始走路」，允許「動作與方向」和「位置」。</li>
-          <li>走路時讓畫面保持開著，放口袋也可以計步。</li>
+          <li>走路時讓畫面保持開著，放口袋時開「省電模式」。</li>
         </ol>
       </div>
       <div class="card">
@@ -349,6 +371,10 @@ h2{font-size:17px;font-weight:900}
     <button type="button" role="tab" data-v="map" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>地圖</button>
     <button type="button" role="tab" data-v="info" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>玩家</button>
   </nav>
+</div>
+
+<div id="eco" aria-label="省電模式，按住畫面兩秒解除">
+  <div id="ecoBox"><strong id="ecoSteps">0</strong><span>今天的步數・計步中</span><span id="ecoNew"></span><span>按住畫面 2 秒解除省電模式</span><div id="ecoBar"><i></i></div></div>
 </div>
 
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="popTitle">
@@ -675,11 +701,12 @@ function addSteps(n,day,live){
   if(weekSteps()>=10000&&st.lvWeek!==wk){st.lvWeek=wk;st.level++;queue.push({t:'lv'})}
   dirty=true;
   if(queue.length){save(true);push()}else save();
+  if(eco){ecoRender();return}
   renderHome();
   nextPop();
 }
 function nextPop(){
-  if(showing||!queue.length)return;
+  if(showing||eco||!queue.length)return;
   var q=queue.shift(),h;
   if(q.t==='food'){
     var f=BY[q.id];
@@ -839,7 +866,7 @@ function act(el,cls,ms){
   setTimeout(function(){cs.forEach(function(c){el.classList.remove(c)});delete el.dataset.busy},ms||1500);
 }
 setInterval(function(){
-  if(document.hidden||showing)return;
+  if(document.hidden||showing||eco)return;
   var els=document.querySelectorAll(curView==='walk'?'#parade .food':'.view.on .fc:not(.no) .food');
   if(!els.length)return;
   var n=curView==='walk'?1:2;
@@ -885,13 +912,52 @@ function onPos(p){
     lastPt=pt;
   }
   save();
-  if(curView==='map'&&mapDay===d&&!mapT)mapT=setTimeout(function(){mapT=0;renderMap(false);if(map&&lastPt)map.panTo(lastPt)},1500);
+  if(!eco&&curView==='map'&&mapDay===d&&!mapT)mapT=setTimeout(function(){mapT=0;renderMap(false);if(map&&lastPt)map.panTo(lastPt)},1500);
 }
 function onPosErr(err){gpsOK=false;chip('chipGps','bad',err&&err.code===1?'GPS 未授權':'GPS 無法定位')}
 function getLock(){
   if(!('wakeLock' in navigator)){chip('chipLock','','螢幕恆亮 不支援');return}
   navigator.wakeLock.request('screen').then(function(l){lock=l;chip('chipLock','ok','螢幕恆亮 開啟')}).catch(function(){chip('chipLock','','螢幕恆亮 無法開啟')});
 }
+function startGps(){
+  try{
+    if('geolocation' in navigator)watchId=navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+    else chip('chipGps','bad','GPS 不支援');
+  }catch(e){chip('chipGps','bad','GPS 無法使用')}
+}
+function stopGps(){if(watchId!=null){try{navigator.geolocation.clearWatch(watchId)}catch(e){}watchId=null}}
+
+/* ---------- 省電模式 ---------- */
+var eco=false,ecoT=0,ecoGpsPaused=false;
+function ecoRender(){
+  $('ecoSteps').textContent=fmt(st.days[today()]||0);
+  $('ecoNew').textContent=queue.length?'有 '+queue.length+' 個新獎勵等你':'';
+}
+function ecoOn(){
+  if(!walking||eco)return;
+  eco=true;document.body.classList.add('eco');$('eco').classList.add('on');ecoRender();
+  if(ls(P+'ecogps')==='1'&&motionOK&&watchId!=null){stopGps();ecoGpsPaused=true}
+}
+function ecoOff(){
+  if(!eco)return;
+  eco=false;clearTimeout(ecoT);document.body.classList.remove('eco');$('eco').classList.remove('on','hold');
+  $('ecoBox').style.transform='';
+  if(ecoGpsPaused){ecoGpsPaused=false;if(walking){newSeg=true;chip('chipGps','','GPS 定位中');startGps()}}
+  renderHome();nextPop();
+}
+$('ecoBtn').addEventListener('click',ecoOn);
+(function(){
+  var el=$('eco');
+  var down=function(e){e.preventDefault();clearTimeout(ecoT);el.classList.add('hold');ecoT=setTimeout(ecoOff,1500)};
+  var up=function(){clearTimeout(ecoT);el.classList.remove('hold')};
+  el.addEventListener('pointerdown',down);
+  ['pointerup','pointercancel','pointerleave'].forEach(function(n){el.addEventListener(n,up)});
+  el.addEventListener('contextmenu',function(e){e.preventDefault()});
+  el.addEventListener('touchmove',function(e){e.preventDefault()},{passive:false});
+})();
+/* 每分鐘稍微移動數字的位置，避免同一處一直亮著 */
+setInterval(function(){if(eco)$('ecoBox').style.transform='translate('+Math.round((Math.random()-.5)*80)+'px,'+Math.round((Math.random()-.5)*160)+'px)'},60000);
+
 function start(){
   if(!st.name){showLogin();return}
   walking=true;motionOK=false;gpsOK=false;newSeg=true;lastPt=null;armed=true;sm=0;
@@ -906,11 +972,9 @@ function start(){
     }else if('DeviceMotionEvent' in window)listen();
     else chip('chipMotion','bad','動作感測 不支援');
   }catch(e){chip('chipMotion','bad','動作感測 無法使用')}
-  try{
-    if('geolocation' in navigator)watchId=navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
-    else chip('chipGps','bad','GPS 不支援');
-  }catch(e){chip('chipGps','bad','GPS 無法使用')}
+  startGps();
   getLock();
+  $('ecoBtn').hidden=false;
   setTimeout(function(){
     if(!walking)return;
     if(!motionOK&&$('chipMotion').className==='chip')chip('chipMotion','bad','動作感測 沒有訊號');
@@ -919,9 +983,10 @@ function start(){
   },6000);
 }
 function stop(){
-  walking=false;
+  ecoGpsPaused=false;ecoOff();
+  walking=false;$('ecoBtn').hidden=true;
   window.removeEventListener('devicemotion',onMotion);
-  if(watchId!=null){try{navigator.geolocation.clearWatch(watchId)}catch(e){}watchId=null}
+  stopGps();
   if(lock){try{lock.release()}catch(e){}lock=null}
   $('scene').classList.remove('walking');$('scene').classList.add('slow');
   $('goBtn').textContent='開始走路';$('goBtn').classList.remove('stop');
@@ -945,6 +1010,8 @@ $('urlBtn').addEventListener('click',function(){
   if(v){push();loadRank()}else{setSync('','已移除試算表網址，紀錄只存在這支手機。');loadRank()}
 });
 $('syncBtn').addEventListener('click',function(){if(!syncUrl()){setSync('bad','請先貼上試算表的 Apps Script 網址。');return}push();loadRank()});
+$('ecoGps').checked=ls(P+'ecogps')==='1';
+$('ecoGps').addEventListener('change',function(){lset(P+'ecogps',this.checked?'1':'0')});
 $('hBtn').addEventListener('click',function(){healthSync(true)});
 $('hCopy').addEventListener('click',function(){
   var i=$('hUrl');if(!i.value){setH('bad','要先設定 Google 試算表同步並登入玩家，才有捷徑網址。');return}
