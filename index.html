@@ -301,18 +301,30 @@ h2{font-size:17px;font-weight:900}
           <li>累計每 500 步，得到一份美食夥伴。</li>
           <li>累計每 5,000 步，再得到一座特別版的世界地標。</li>
           <li>週一到週日走滿 10,000 步，升一級。每升一級，隊伍多帶一位夥伴。</li>
+          <li>螢幕關著時走的步數，用「iPhone 健康步數」帶入。</li>
           <li>點一下任何角色，它會跳起來跟你打招呼。</li>
         </ul>
+      </div>
+      <div class="card">
+        <h2>iPhone 健康步數</h2>
+        <p class="sub">關螢幕、沒開遊戲時走的路，iPhone 的「健康」都有算。用「捷徑」把今天的健康步數送到試算表，回到遊戲就會補上差額並發獎勵。遊戲裡算的和健康的步數取較多的那個，不會重複計算。這支手機上其他玩家開著遊戲走的步數，會先從健康步數裡扣掉。</p>
+        <ol style="margin-top:8px">
+          <li>打開「捷徑」App，按右上角「＋」新增捷徑。</li>
+          <li>加入動作「尋找健康樣本」：類型選「步數」，條件設「開始日期 是 今天」。</li>
+          <li>加入動作「計算統計資料」：選「總和」。</li>
+          <li>加入動作「文字」：貼上下面的網址，再在最後面插入變數「計算結果」。</li>
+          <li>加入動作「取得 URL 內容」：URL 選上一步的「文字」。</li>
+          <li>命名為「美食GO步數」，執行一次，允許讀取健康資料。</li>
+        </ol>
+        <div class="inline"><input id="hUrl" type="text" readonly aria-label="捷徑要用的網址" placeholder="登入並設定試算表同步後，這裡會出現網址"><button class="btn" id="hCopy" type="button">複製</button></div>
+        <div class="inline"><button class="btn plain" id="hBtn" type="button">帶入健康步數</button></div>
+        <p class="syncmsg" id="hMsg"></p>
+        <p class="sub">網址裡有你的玩家名稱，每位玩家要用自己的。有戴 Apple Watch 的話，在第 2 步多加條件「來源 是 iPhone」，避免手錶和手機重複加總。</p>
       </div>
       <div class="card">
         <h2>補登步數</h2>
         <p class="sub">螢幕關閉時網頁不能計步。可以把 iPhone「健康」App 裡今天多出來的步數補進來。</p>
         <div class="inline"><input id="manual" type="number" inputmode="numeric" min="1" max="50000" placeholder="步數" aria-label="要補登的步數"><button class="btn" id="manualBtn" type="button">補登</button></div>
-      </div>
-      <div class="card">
-        <h2>試玩</h2>
-        <p class="sub">不出門先看看獎勵和地圖長什麼樣子。會加上模擬步數和模擬軌跡。</p>
-        <div class="inline"><button class="btn plain" id="demoBtn" type="button">模擬快走 500 步</button></div>
       </div>
       <div class="card">
         <h2>裝到 iPhone 主畫面</h2>
@@ -499,7 +511,7 @@ var P='wfgo.';
 var LV_NAMES=['街邊小吃客','夜市嚮導','美食旅人','環球饕客','世界美食大使'];
 function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
-function fresh(name){return {v:2,name:name||'',total:0,days:{},givenN:0,givenS:0,level:1,lvWeek:'',foods:{boba:1},marks:{},recent:['boba'],tracks:{},dist:{},demo:{},updated:0}}
+function fresh(name){return {v:2,name:name||'',total:0,days:{},givenN:0,givenS:0,level:1,lvWeek:'',foods:{boba:1},marks:{},recent:['boba'],tracks:{},dist:{},demo:{},live:{},updated:0}}
 function fill(o){var b=fresh(o.name);for(var k in o)b[k]=o[k];return b}
 function players(){try{var a=JSON.parse(ls(P+'players')||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
 function readLocal(name){try{var o=JSON.parse(ls(P+'p.'+name)||'null');return o&&typeof o.total==='number'?fill(o):null}catch(e){return null}}
@@ -535,13 +547,13 @@ function fmt(n){return Math.round(n).toLocaleString('en-US')}
 function kinds(o){return Object.keys(o).filter(function(k){return o[k]>0&&BY[k]}).length}
 function count(o){var n=0;for(var k in o)n+=o[k]||0;return n}
 function lvName(l){return LV_NAMES[Math.min(l||st.level,LV_NAMES.length)-1]}
-function prune(){var lim=new Date();lim.setDate(lim.getDate()-14);var lk=dkey(lim);for(var k in st.tracks)if(k<lk){delete st.tracks[k];delete st.dist[k];delete st.demo[k]}}
+function prune(){var lim=new Date();lim.setDate(lim.getDate()-14);var lk=dkey(lim);for(var k in st.tracks)if(k<lk){delete st.tracks[k];delete st.dist[k];delete st.demo[k]}for(var j in st.live)if(j<lk)delete st.live[j]}
 
 /* ---------- Google 試算表同步 ---------- */
 function syncUrl(){return ls(P+'url')||SYNC_URL_DEFAULT}
 function setSync(cls,txt){var m=$('syncMsg');m.className='syncmsg'+(cls?' '+cls:'');m.textContent=txt}
 function payload(force){
-  var s={};for(var k in st)if(k!=='tracks'&&k!=='dist'&&k!=='demo')s[k]=st[k];
+  var s={};for(var k in st)if(k!=='tracks'&&k!=='dist'&&k!=='demo'&&k!=='live')s[k]=st[k];
   return {name:st.name,total:st.total,level:st.level,foodKinds:kinds(st.foods),foodCount:count(st.foods),markKinds:kinds(st.marks),markCount:count(st.marks),week:weekSteps(),today:st.days[today()]||0,force:!!force,save:s};
 }
 function push(force,keep){
@@ -555,10 +567,50 @@ function push(force,keep){
 }
 function pull(name){
   var u=syncUrl();if(!u)return Promise.resolve(null);
-  try{return fetch(u+'?action=load&name='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(j){return j&&j.ok&&j.found&&j.save?j.save:null}).catch(function(){return null})}
+  try{return fetch(u+'?action=load&name='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(j){return j&&j.ok?j:null}).catch(function(){return null})}
   catch(e){return Promise.resolve(null)}
 }
 setInterval(function(){if(dirty)push()},30000);
+
+/* ---------- iPhone 健康步數（由「捷徑」送到試算表，遊戲再帶入） ---------- */
+function setH(cls,txt){var m=$('hMsg');m.className='syncmsg'+(cls?' '+cls:'');m.textContent=txt}
+/* 這支手機上其他玩家當天開著遊戲走的步數：手機的健康步數也含這些，要先扣掉 */
+function othersLive(d){
+  return players().reduce(function(n,p){
+    if(p===st.name)return n;
+    var o=readLocal(p);return n+((o&&o.live&&o.live[d])||0);
+  },0);
+}
+function applyHealth(h){
+  if(!h||typeof h!=='object')return 0;
+  var t=today(),lim=new Date();lim.setDate(lim.getDate()-7);var lk=dkey(lim),add=0;
+  Object.keys(h).sort().forEach(function(d){
+    if(!/^\d{4}-\d\d-\d\d$/.test(d)||d>t||d<lk)return;
+    var v=Math.floor(+h[d]);if(!(v>0)||v>100000)return;
+    v=Math.max(0,v-othersLive(d));
+    var diff=v-(st.days[d]||0);
+    if(diff>0){addSteps(diff,d);add+=diff}
+  });
+  return add;
+}
+var lastH=0;
+function healthSync(manual){
+  var name=st.name;
+  if(!syncUrl()||!name){if(manual)setH('bad','要先設定 Google 試算表同步，才能帶入健康步數。');return}
+  if(!manual&&Date.now()-lastH<15000)return;
+  lastH=Date.now();
+  if(manual)setH('','讀取中…');
+  pull(name).then(function(j){
+    if(st.name!==name)return;
+    if(!j){if(manual)setH('bad','讀不到試算表。請確認網路，並用自己的 https 網址開啟遊戲。');return}
+    if(!('health' in j)){if(manual)setH('bad','試算表的 Apps Script 還是舊版。請貼上新的 Code.gs，並在「管理部署作業」更新成新版本。');return}
+    var add=applyHealth(j.health),hv=j.health?j.health[today()]:null,ded=othersLive(today());
+    var note=hv!=null?'今天健康步數 '+fmt(hv)+' 步'+(ded?'，扣掉這支手機其他玩家走的 '+fmt(Math.min(ded,hv))+' 步':''):'';
+    renderInfo();
+    if(add)setH('ok','已帶入 '+fmt(add)+' 步。'+note+'。');
+    else if(manual)setH('',hv!=null?note+'，沒有比遊戲裡的多，不用補。':'試算表裡還沒有今天的健康步數。請先執行捷徑，再按一次。');
+  });
+}
 
 /* ---------- 登入 ---------- */
 var showing=false,queue=[];
@@ -588,12 +640,15 @@ function enter(name){
   renderAll();
   if(syncUrl()){
     setSync('','讀取試算表紀錄…');
-    pull(name).then(function(cs){
+    pull(name).then(function(j){
       if(st.name!==name)return;
+      var cs=j&&j.found&&j.save?j.save:null;
       if(cs&&typeof cs.total==='number'&&cs.total>st.total){
-        var keep={tracks:st.tracks,dist:st.dist,demo:st.demo};st=fill(cs);st.name=name;st.tracks=keep.tracks;st.dist=keep.dist;st.demo=keep.demo;
+        var keep={tracks:st.tracks,dist:st.dist,demo:st.demo,live:st.live};st=fill(cs);st.name=name;st.tracks=keep.tracks;st.dist=keep.dist;st.demo=keep.demo;st.live=keep.live;
         save(true);paradeSig='';renderAll();setSync('ok','已從 Google 試算表載入「'+name+'」的紀錄。');
       }else push();
+      var add=applyHealth(j&&j.health);
+      if(add){renderInfo();setH('ok','已帶入 iPhone 健康步數 '+fmt(add)+' 步。')}
       loadRank();
     });
   }else{setSync('','還沒設定試算表網址，紀錄先存在這支手機。');loadRank()}
@@ -609,9 +664,10 @@ function grant(sp){
   st.recent=st.recent.filter(function(r){return r!==f.id});st.recent.push(f.id);if(st.recent.length>10)st.recent.shift();
   queue.push({t:'food',id:f.id});
 }
-function addSteps(n){
+function addSteps(n,day,live){
   if(!(n>0)||!st.name)return;
-  var d=today();
+  var d=day||today();
+  if(live){if(!st.live)st.live={};st.live[d]=(st.live[d]||0)+n}
   st.total+=n;st.days[d]=(st.days[d]||0)+n;
   while(Math.floor(st.total/500)>st.givenN){st.givenN++;grant(false)}
   while(Math.floor(st.total/5000)>st.givenS){st.givenS++;grant(true)}
@@ -673,6 +729,8 @@ function renderInfo(){
   $('pFoods').textContent=kinds(st.foods)+'/'+FOODS.length;
   $('pMarks').textContent=kinds(st.marks)+'/'+MARKS.length;
   if(document.activeElement!==$('urlIn'))$('urlIn').value=ls(P+'url')||'';
+  var u=syncUrl();
+  $('hUrl').value=u&&st.name?u+'?action=health&name='+encodeURIComponent(st.name)+'&steps=':'';
 }
 function drawRank(rows,src){
   rows.sort(function(a,b){return b.total-a.total});
@@ -804,7 +862,7 @@ function onMotion(e){
   grav=grav*0.98+mag*0.02;
   sm=sm*0.7+(mag-grav)*0.3;
   var now=e.timeStamp||Date.now();
-  if(armed&&sm>1.1&&now-lastStepT>280){armed=false;lastStepT=now;addSteps(1)}
+  if(armed&&sm>1.1&&now-lastStepT>280){armed=false;lastStepT=now;addSteps(1,null,true)}
   else if(!armed&&sm<0.2)armed=true;
 }
 function onPos(p){
@@ -822,7 +880,7 @@ function onPos(p){
       var total=segs.reduce(function(n,s){return n+s.length},0);
       if(total<4000)segs[segs.length-1].push(pt);
       st.dist[d]=(st.dist[d]||0)+m;
-      if(!motionOK){carry+=m/0.7;var n=Math.floor(carry);carry-=n;addSteps(n)}
+      if(!motionOK){carry+=m/0.7;var n=Math.floor(carry);carry-=n;addSteps(n,null,true)}
     }
     lastPt=pt;
   }
@@ -856,7 +914,7 @@ function start(){
   setTimeout(function(){
     if(!walking)return;
     if(!motionOK&&$('chipMotion').className==='chip')chip('chipMotion','bad','動作感測 沒有訊號');
-    if(!motionOK&&!gpsOK)hint('這個畫面讀不到手機的動作感測和位置。請把遊戲放到自己的 https 網址，用 iPhone 的 Safari 開啟並允許權限。現在可以先到「玩家」用試玩或補登步數。');
+    if(!motionOK&&!gpsOK)hint('這個畫面讀不到手機的動作感測和位置。請把遊戲放到自己的 https 網址，用 iPhone 的 Safari 開啟並允許權限。現在可以先到「玩家」補登步數。');
     else if(!motionOK)hint('讀不到動作感測，改用 GPS 移動距離換算步數（每 0.7 公尺算一步）。');
   },6000);
 }
@@ -872,7 +930,7 @@ function stop(){
 }
 $('goBtn').addEventListener('click',function(){walking?stop():start()});
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible'){renderHome();if(walking){newSeg=true;getLock()}}
+  if(document.visibilityState==='visible'){renderHome();healthSync(false);if(walking){newSeg=true;getLock()}}
   else{save(true);if(dirty)push(false,true)}
 });
 window.addEventListener('pagehide',function(){save(true);if(dirty)push(false,true)});
@@ -887,24 +945,16 @@ $('urlBtn').addEventListener('click',function(){
   if(v){push();loadRank()}else{setSync('','已移除試算表網址，紀錄只存在這支手機。');loadRank()}
 });
 $('syncBtn').addEventListener('click',function(){if(!syncUrl()){setSync('bad','請先貼上試算表的 Apps Script 網址。');return}push();loadRank()});
+$('hBtn').addEventListener('click',function(){healthSync(true)});
+$('hCopy').addEventListener('click',function(){
+  var i=$('hUrl');if(!i.value){setH('bad','要先設定 Google 試算表同步並登入玩家，才有捷徑網址。');return}
+  var ok=function(){setH('ok','已複製捷徑網址。')},no=function(){i.focus();i.select();setH('','請長按上面的網址，選「拷貝」。')};
+  try{navigator.clipboard.writeText(i.value).then(ok).catch(no)}catch(e){no()}
+});
 $('manualBtn').addEventListener('click',function(){
   var v=Math.floor(+$('manual').value);
   if(!(v>0)||v>50000){$('manual').focus();return}
   $('manual').value='';addSteps(v);renderInfo();
-});
-$('demoBtn').addEventListener('click',function(){
-  var d=today(),segs=st.tracks[d]||(st.tracks[d]=[]);
-  if(!walking||!gpsOK){
-    if(!segs.length)segs.push([[25.0325,121.5338]]);
-    var s=segs[segs.length-1],p=s[s.length-1],hd=st.demoHead==null?1.6:st.demoHead;
-    for(var i=0;i<8;i++){
-      hd+=(Math.random()-.4)*.7;
-      var q=[+(p[0]+Math.cos(hd)*0.0004).toFixed(6),+(p[1]+Math.sin(hd)*0.00044).toFixed(6)];
-      st.dist[d]=(st.dist[d]||0)+hav(p,q);s.push(q);p=q;
-    }
-    st.demoHead=hd;st.demo[d]=1;
-  }
-  addSteps(500);renderInfo();
 });
 var resetArm=0;
 $('resetBtn').addEventListener('click',function(){
