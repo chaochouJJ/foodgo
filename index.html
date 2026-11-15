@@ -318,25 +318,8 @@ body.eco .food *,body.eco .road{animation-play-state:paused!important}
           <li>累計每 500 步，得到一份美食夥伴。</li>
           <li>累計每 5,000 步，再得到一座特別版的世界地標。</li>
           <li>週一到週日走滿 10,000 步，升一級。每升一級，隊伍多帶一位夥伴。</li>
-          <li>螢幕關著時走的步數，用「iPhone 健康步數」帶入。</li>
           <li>點一下任何角色，它會跳起來跟你打招呼。</li>
         </ul>
-      </div>
-      <div class="card">
-        <h2>iPhone 健康步數</h2>
-        <p class="sub">關螢幕、沒開遊戲時走的路，iPhone 的「健康」都有算。用「捷徑」把今天的健康步數送到試算表，回到遊戲就會補上差額並發獎勵。遊戲裡算的和健康的步數取較多的那個，不會重複計算。這支手機上其他玩家開著遊戲走的步數，會先從健康步數裡扣掉。</p>
-        <ol style="margin-top:8px">
-          <li>打開「捷徑」App，按右上角「＋」新增捷徑。</li>
-          <li>加入動作「尋找健康樣本」：類型選「步數」，條件設「開始日期 是 今天」。</li>
-          <li>加入動作「計算統計資料」：選「總和」。</li>
-          <li>加入動作「文字」：貼上下面的網址，再在最後面插入變數「計算結果」。</li>
-          <li>加入動作「取得 URL 內容」：URL 選上一步的「文字」。</li>
-          <li>命名為「美食GO步數」，執行一次，允許讀取健康資料。</li>
-        </ol>
-        <div class="inline"><input id="hUrl" type="text" readonly aria-label="捷徑要用的網址" placeholder="登入並設定試算表同步後，這裡會出現網址"><button class="btn" id="hCopy" type="button">複製</button></div>
-        <div class="inline"><button class="btn plain" id="hBtn" type="button">帶入健康步數</button></div>
-        <p class="syncmsg" id="hMsg"></p>
-        <p class="sub">網址裡有你的玩家名稱，每位玩家要用自己的。有戴 Apple Watch 的話，在第 2 步多加條件「來源 是 iPhone」，避免手錶和手機重複加總。</p>
       </div>
       <div class="card">
         <h2>省電模式</h2>
@@ -598,46 +581,6 @@ function pull(name){
 }
 setInterval(function(){if(dirty)push()},30000);
 
-/* ---------- iPhone 健康步數（由「捷徑」送到試算表，遊戲再帶入） ---------- */
-function setH(cls,txt){var m=$('hMsg');m.className='syncmsg'+(cls?' '+cls:'');m.textContent=txt}
-/* 這支手機上其他玩家當天開著遊戲走的步數：手機的健康步數也含這些，要先扣掉 */
-function othersLive(d){
-  return players().reduce(function(n,p){
-    if(p===st.name)return n;
-    var o=readLocal(p);return n+((o&&o.live&&o.live[d])||0);
-  },0);
-}
-function applyHealth(h){
-  if(!h||typeof h!=='object')return 0;
-  var t=today(),lim=new Date();lim.setDate(lim.getDate()-7);var lk=dkey(lim),add=0;
-  Object.keys(h).sort().forEach(function(d){
-    if(!/^\d{4}-\d\d-\d\d$/.test(d)||d>t||d<lk)return;
-    var v=Math.floor(+h[d]);if(!(v>0)||v>100000)return;
-    v=Math.max(0,v-othersLive(d));
-    var diff=v-(st.days[d]||0);
-    if(diff>0){addSteps(diff,d);add+=diff}
-  });
-  return add;
-}
-var lastH=0;
-function healthSync(manual){
-  var name=st.name;
-  if(!syncUrl()||!name){if(manual)setH('bad','要先設定 Google 試算表同步，才能帶入健康步數。');return}
-  if(!manual&&Date.now()-lastH<15000)return;
-  lastH=Date.now();
-  if(manual)setH('','讀取中…');
-  pull(name).then(function(j){
-    if(st.name!==name)return;
-    if(!j){if(manual)setH('bad','讀不到試算表。請確認網路，並用自己的 https 網址開啟遊戲。');return}
-    if(!('health' in j)){if(manual)setH('bad','試算表的 Apps Script 還是舊版。請貼上新的 Code.gs，並在「管理部署作業」更新成新版本。');return}
-    var add=applyHealth(j.health),hv=j.health?j.health[today()]:null,ded=othersLive(today());
-    var note=hv!=null?'今天健康步數 '+fmt(hv)+' 步'+(ded?'，扣掉這支手機其他玩家走的 '+fmt(Math.min(ded,hv))+' 步':''):'';
-    renderInfo();
-    if(add)setH('ok','已帶入 '+fmt(add)+' 步。'+note+'。');
-    else if(manual)setH('',hv!=null?note+'，沒有比遊戲裡的多，不用補。':'試算表裡還沒有今天的健康步數。請先執行捷徑，再按一次。');
-  });
-}
-
 /* ---------- 登入 ---------- */
 var showing=false,queue=[];
 function openPop(html){$('pop').innerHTML=html;$('pop').style.animation='none';void $('pop').offsetWidth;$('pop').style.animation='';$('modal').classList.add('on');showing=true}
@@ -673,8 +616,6 @@ function enter(name){
         var keep={tracks:st.tracks,dist:st.dist,demo:st.demo,live:st.live};st=fill(cs);st.name=name;st.tracks=keep.tracks;st.dist=keep.dist;st.demo=keep.demo;st.live=keep.live;
         save(true);paradeSig='';renderAll();setSync('ok','已從 Google 試算表載入「'+name+'」的紀錄。');
       }else push();
-      var add=applyHealth(j&&j.health);
-      if(add){renderInfo();setH('ok','已帶入 iPhone 健康步數 '+fmt(add)+' 步。')}
       loadRank();
     });
   }else{setSync('','還沒設定試算表網址，紀錄先存在這支手機。');loadRank()}
@@ -756,8 +697,6 @@ function renderInfo(){
   $('pFoods').textContent=kinds(st.foods)+'/'+FOODS.length;
   $('pMarks').textContent=kinds(st.marks)+'/'+MARKS.length;
   if(document.activeElement!==$('urlIn'))$('urlIn').value=ls(P+'url')||'';
-  var u=syncUrl();
-  $('hUrl').value=u&&st.name?u+'?action=health&name='+encodeURIComponent(st.name)+'&steps=':'';
 }
 function drawRank(rows,src){
   rows.sort(function(a,b){return b.total-a.total});
@@ -995,7 +934,7 @@ function stop(){
 }
 $('goBtn').addEventListener('click',function(){walking?stop():start()});
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible'){renderHome();healthSync(false);if(walking){newSeg=true;getLock()}}
+  if(document.visibilityState==='visible'){renderHome();if(walking){newSeg=true;getLock()}}
   else{save(true);if(dirty)push(false,true)}
 });
 window.addEventListener('pagehide',function(){save(true);if(dirty)push(false,true)});
@@ -1012,12 +951,6 @@ $('urlBtn').addEventListener('click',function(){
 $('syncBtn').addEventListener('click',function(){if(!syncUrl()){setSync('bad','請先貼上試算表的 Apps Script 網址。');return}push();loadRank()});
 $('ecoGps').checked=ls(P+'ecogps')==='1';
 $('ecoGps').addEventListener('change',function(){lset(P+'ecogps',this.checked?'1':'0')});
-$('hBtn').addEventListener('click',function(){healthSync(true)});
-$('hCopy').addEventListener('click',function(){
-  var i=$('hUrl');if(!i.value){setH('bad','要先設定 Google 試算表同步並登入玩家，才有捷徑網址。');return}
-  var ok=function(){setH('ok','已複製捷徑網址。')},no=function(){i.focus();i.select();setH('','請長按上面的網址，選「拷貝」。')};
-  try{navigator.clipboard.writeText(i.value).then(ok).catch(no)}catch(e){no()}
-});
 $('manualBtn').addEventListener('click',function(){
   var v=Math.floor(+$('manual').value);
   if(!(v>0)||v>50000){$('manual').focus();return}
